@@ -30,11 +30,6 @@ export const metadata: Metadata = {
     shortcut: "/favicon.ico",
     apple: "/favicon.ico",
   },
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 5,
-  },
   verification: {
     google: "24f9cc081f9ae37b",
   },
@@ -66,6 +61,13 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
+};
+
+import { Viewport } from 'next';
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({
