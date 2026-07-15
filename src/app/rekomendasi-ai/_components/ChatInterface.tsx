@@ -314,7 +314,7 @@ export default function ChatInterface() {
     if (storeCars.length === 0) {
       fetchCars();
     }
-  }, [storeCars, fetchCars]);
+  }, [storeCars.length, fetchCars]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
