@@ -26,7 +26,7 @@ const ListMobil = () => {
     if (cars.length === 0) {
       fetchCars();
     }
-  }, [cars, fetchCars]);
+  }, [cars.length, fetchCars]);
 
   // Keep existing parseArray function
   const parseArray = (value: any): string[] => {

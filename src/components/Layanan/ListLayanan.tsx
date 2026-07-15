@@ -14,7 +14,7 @@ const ListLayanan = () => {
     if (layananList.length === 0) {
       fetchLayanan();
     }
-  }, [layananList, fetchLayanan]);
+  }, [layananList.length, fetchLayanan]);
 
   if (isLoading) return <LayananListSkeleton />;
 

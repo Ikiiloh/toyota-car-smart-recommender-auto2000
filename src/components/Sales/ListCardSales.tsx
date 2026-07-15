@@ -13,7 +13,7 @@ const ListSales = () => {
     if (sales.length === 0) {
       fetchSales();
     }
-  }, [sales, fetchSales]);
+  }, [sales.length, fetchSales]);
 
   if (isLoading) return <SalesListSkeleton />;
   return (

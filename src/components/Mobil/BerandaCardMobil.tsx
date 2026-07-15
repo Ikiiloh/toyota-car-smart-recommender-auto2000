@@ -14,7 +14,7 @@ export function BerandaCardMobil() {
     if (cars.length === 0) {
       fetchCars();
     }
-  }, [cars, fetchCars]);
+  }, [cars.length, fetchCars]);
 
   const parseArrayFirst = (value: any): string => {
     if (!value) return "--";
