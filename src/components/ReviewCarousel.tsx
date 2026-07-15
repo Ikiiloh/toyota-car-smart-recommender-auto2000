@@ -39,7 +39,7 @@ const ReviewCarousel = () => {
     if (reviews.length === 0) {
       fetchReviews();
     }
-  }, [reviews, fetchReviews]);
+  }, [reviews.length, fetchReviews]);
 
   return (
     <section className="w-full py-8 px-4">
