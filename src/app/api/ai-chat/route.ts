@@ -74,42 +74,45 @@ let cachedModelAliases: string[] = [];
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 jam
 
-// Prefix umum Toyota yang perlu dihapus untuk membuat alias pendek
-const STRIP_PREFIXES = /^(toyota\s+)?(all\s+new\s+|new\s+)?(kijang\s+)?/i;
+// Prefix umum merek yang perlu dihapus
+const STRIP_PREFIXES = /^(toyota\s+)?(all\s+new\s+|new\s+)?/i;
 
 /**
- * Dari nama lengkap di DB (misal "Toyota New Kijang Innova Zenix Hybrid EV"),
- * buat alias-alias pendek yang sesuai dengan cara user mengetik:
- *   - "innova zenix hybrid ev" (stripped — otomatis ditambahkan)
- *   - "innova zenix hybrid" (sub-phrase)
- *   - "innova zenix" (sub-phrase)
- * 
- * Single-word model (misal "Hilux", "Agya") otomatis masuk via aliases.add(stripped).
- * Sub-phrases minimal 2 kata agar "hilux" tidak ikut muncul dari "hilux rangga".
+ * Dari nama lengkap di DB, buat semua kombinasi alias (N-grams).
+ * @param dynamicBlacklist Kata-kata tunggal yang tidak boleh dijadikan alias karena terlalu umum
  */
-function generateAliases(fullName: string): string[] {
+function generateAliases(fullName: string, dynamicBlacklist: Set<string>): string[] {
   const stripped = fullName.replace(STRIP_PREFIXES, "").trim();
   if (!stripped) return [fullName];
 
   const aliases = new Set<string>();
-  aliases.add(fullName); // nama lengkap tetap disimpan
-  aliases.add(stripped); // nama tanpa prefix (juga menangani single-word model)
+  aliases.add(fullName); // nama lengkap
+  aliases.add(stripped); // nama tanpa prefix toyota/new
 
   const words = stripped.split(/\s+/);
-
-  // Jika kata pertama bukan kata tunggal yang dilarang/ambigu, tambahkan sebagai alias
-  if (words[0]) {
-    const firstWordLower = words[0].toLowerCase();
-    const blacklistedSingleWords = ["hilux", "gr", "ev", "hev"];
-    if (firstWordLower.length > 2 && !blacklistedSingleWords.includes(firstWordLower)) {
-      aliases.add(words[0]);
+  
+  // Generate semua kombinasi kata berurutan (N-Grams)
+  for (let start = 0; start < words.length; start++) {
+    for (let end = start + 1; end <= words.length; end++) {
+      const phraseWords = words.slice(start, end);
+      const phrase = phraseWords.join(" ");
+      
+      // Jika hanya 1 kata
+      if (phraseWords.length === 1) {
+        const wordLower = phrase.toLowerCase();
+        
+        // Daftar hitam manual (karena kadang kata "hybrid"/"sport" tidak sengaja masuk ke kolom tipe_mobil di DB)
+        const staticBlacklist = ["hybrid", "hev", "ev", "gr", "sport", "gr-s", "mt", "at", "cvt"];
+        
+        // Hanya tambahkan jika panjangnya > 2 dan tidak masuk daftar hitam dinamis & statis
+        if (wordLower.length > 2 && !dynamicBlacklist.has(wordLower) && !staticBlacklist.includes(wordLower)) {
+          aliases.add(phrase);
+        }
+      } else {
+        // Jika 2 kata atau lebih, langsung tambahkan
+        aliases.add(phrase);
+      }
     }
-  }
-
-  // Buat sub-phrases progresif (dari panjang ke pendek, minimal 2 kata)
-  // agar "hilux" TIDAK di-generate dari "hilux rangga"
-  for (let len = words.length; len >= 2; len--) {
-    aliases.add(words.slice(0, len).join(" "));
   }
 
   return Array.from(aliases);
@@ -131,10 +134,33 @@ async function fetchModelNames(): Promise<string[]> {
       .map((r: any) => r.tipe_mobil?.trim().toLowerCase())
       .filter(Boolean);
 
-    // Generate aliases untuk setiap model
+    // 1. Deteksi Kata Umum Otomatis (Dynamic Blacklist)
+    // Kata yang muncul di lebih dari 1 "keluarga mobil" (first word berbeda) dianggap umum.
+    const wordToFirstWords = new Map<string, Set<string>>();
+    for (const model of rawModels) {
+      const stripped = model.replace(STRIP_PREFIXES, "").trim();
+      const words = stripped.split(/\s+/);
+      const firstWord = words[0]; // Contoh: "yaris", "innova", "corolla"
+      
+      for (const w of words) {
+        if (!wordToFirstWords.has(w)) wordToFirstWords.set(w, new Set());
+        wordToFirstWords.get(w)!.add(firstWord);
+      }
+    }
+
+    const dynamicBlacklist = new Set<string>();
+    for (const [word, firstWordsSet] of wordToFirstWords.entries()) {
+      // Jika kata tersebut dipakai oleh 2 keluarga mobil atau lebih (misal "Cross" ada di Yaris & Corolla)
+      if (firstWordsSet.size >= 2) {
+        dynamicBlacklist.add(word);
+      }
+    }
+    console.log(`[Auto-Blacklist] Kata umum terdeteksi:`, Array.from(dynamicBlacklist));
+
+    // 2. Generate aliases menggunakan blacklist dinamis
     const allAliases = new Set<string>();
     for (const model of rawModels) {
-      for (const alias of generateAliases(model)) {
+      for (const alias of generateAliases(model, dynamicBlacklist)) {
         allAliases.add(alias);
       }
     }
