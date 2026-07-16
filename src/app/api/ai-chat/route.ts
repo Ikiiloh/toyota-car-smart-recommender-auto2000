@@ -355,8 +355,14 @@ async function cariKonteksHybrid(
   originalMessage: string,
   chatHistory: { role: string; content: string }[] = []
 ): Promise<string> {
-  const budgetMin = selfQuery.budget_min;
-  const budgetMax = selfQuery.budget_max;
+  // Budget tolerance: jika budget_min === budget_max (misal user bilang "budget 350 juta"),
+  // artinya "sampai 350 juta", bukan "tepat 350 juta". Null-kan budget_min.
+  let budgetMin = selfQuery.budget_min;
+  let budgetMax = selfQuery.budget_max;
+  if (budgetMin !== null && budgetMax !== null && budgetMin === budgetMax) {
+    console.log(`[Budget Tolerance] budget_min === budget_max (${budgetMin}), treating as "up to ${budgetMax}". Setting budget_min = null.`);
+    budgetMin = null;
+  }
   const queryIrit = selfQuery.is_fuel_efficient;
   const queryHarga = selfQuery.price_sort;
   const hybridFilter = selfQuery.is_hybrid;
@@ -577,14 +583,17 @@ async function cariKonteksHybrid(
     const [rows] = await koneksi.execute(sql, params);
     hasil = rows as any[];
 
-    // Fallback: if budget too low, find closest price matches
-    if (hasil.length === 0 && budgetMax !== null && budgetMax < 250000000) {
+    // Fallback: jika hasil 0 dan ada budget filter, cari mobil terdekat tanpa batasan harga
+    if (hasil.length === 0 && (budgetMin !== null || budgetMax !== null)) {
+      console.log("[RAG Fallback] 0 results with budget filter. Removing budget constraints and finding closest price matches.");
+      const fallbackPrice = budgetMax ?? budgetMin!;
       const fallbackSql = `SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol, 0 as jarak 
          FROM data_mobil_hybrid 
          WHERE 1=1 ${modelFilter}${excludeFilter}${hybridClause}${seaterClause}${keywordClause}
-         ORDER BY ABS(harga - ?) ASC LIMIT 3`;
-      const [fallbackRows] = await koneksi.execute(fallbackSql, [budgetMax]);
+         ORDER BY ABS(harga - ?) ASC LIMIT 5`;
+      const [fallbackRows] = await koneksi.execute(fallbackSql, [fallbackPrice]);
       hasil = fallbackRows as any[];
+      console.log(`[RAG Fallback] Found ${hasil.length} results after removing budget constraints.`);
     }
 
     // Build context string
@@ -648,7 +657,7 @@ async function tanyaGemini(
     
     PEDOMAN GAYA BAHASA & LOGIKA JAWABAN:
     1. PERSONA SALES: Gunakan bahasa yang sopan, hangat (misal menyapa dengan 'Bapak/Ibu'), dan profesional. Jelaskan fitur secara menyeluruh namun sederhana agar kustomer tidak bingung.
-    2. VALIDASI DATA & PENGETAHUAN UMUM TEKNOLOGI: Jawab kustomer berdasarkan data yang ada di <data_database>. Anda DILARANG KERAS memberikan informasi harga, varian, atau spesifikasi teknis dari mobil apapun (termasuk unit Toyota seperti Rush, Avanza, dll) jika data mobil tersebut tidak ada/kosong di dalam <data_database> yang Anda terima. Jika data unit tersebut tidak ada di <data_database>, katakan dengan jujur bahwa data harga dan unit tersebut belum tersedia di database resmi kami saat ini, alih-alih menebak harganya dari memori Anda. Namun, jika kustomer menanyakan nama teknologi otomotif, fitur keselamatan khusus (seperti sensor ngantuk/EDSS, radar, TSS, airbag, dll), atau istilah teknis yang penjelasannya tidak ada/minim di database, Anda diperbolehkan menggunakan pengetahuan umum Anda untuk menjelaskan cara kerja teknologi tersebut terlebih dahulu. Setelah itu, Anda wajib mereferensikan mobil di <data_database> yang memiliki sistem keselamatan tersebut (contoh: fitur Emergency Driving Stop System/EDSS adalah bagian dari paket Toyota Safety Sense/TSS, yang ada pada unit seperti Corolla Cross, Innova Zenix, Yaris Cross, Veloz TSS, dan Prius).
+    2. VALIDASI DATA & PENGETAHUAN UMUM TEKNOLOGI: Jawab kustomer berdasarkan data yang ada di <data_database>. Anda DILARANG KERAS memberikan informasi harga, varian, atau spesifikasi teknis dari mobil apapun (termasuk unit Toyota seperti Rush, Avanza, dll) jika data mobil tersebut tidak ada/kosong di dalam <data_database> yang Anda terima. Jika data unit tersebut tidak ada di <data_database>, katakan dengan jujur bahwa data harga dan unit tersebut belum tersedia di database resmi kami saat ini, alih-alih menebak harganya dari memori Anda. Namun, jika kustomer menanyakan nama teknologi otomotif atau istilah teknis yang penjelasannya tidak ada/minim di database, Anda diperbolehkan menggunakan pengetahuan umum Anda untuk menjelaskan cara kerja teknologi tersebut terlebih dahulu. Setelah itu, Anda wajib mereferensikan mobil di <data_database> yang memiliki sistem tersebut.
     3. LOGIKA REKOMENDASI (CROSS-SELLING): Jika kustomer mencari mobil tertentu yang TIDAK ADA di database, jangan langsung menolak. Lihat kriteria mereka (misal: mencari mobil keluarga, atau mobil irit). Cari mobil lain di <data_database> yang memiliki kemiripan kriteria, lalu berikan rekomendasi dengan kalimat: "Mohon maaf, unit [Mobil A] belum tersedia di data kami, namun berdasarkan keinginan Bapak/Ibu yang mencari mobil [Kriteria], saya sangat merekomendasikan [Mobil B] karena..."
     4. HARGA: Selalu informasikan bahwa harga tersebut adalah harga OTR Labuhanbatu untuk membantu kustomer menghitung budget mereka.
     5. STRUKTUR: Gunakan bullet points atau penomoran agar penjelasan fitur mudah dipahami.
@@ -681,6 +690,7 @@ async function tanyaGemini(
         - Garansi General (Semua Mobil): Meliputi kerusakan akibat cacat produksi pada mesin, transmisi, kelistrikan bodi, dan cat selama 3 tahun atau 100.000 km.
         - Program T-Care: Gratis Biaya Jasa Servis & Suku Cadang sampai servis berkala ke-7 (maksimal 3 tahun / 60.000 km) dan bonus perpanjangan garansi (Extended Warranty) 1 tahun / 20.000 km (total 4 tahun/120.000 km) jika rutin servis setiap 6 bulan di bengkel resmi.
         - Mobil Hybrid & EV (Double Protection): Mendapat Garansi General ditambah Garansi Khusus Baterai & Sistem Elektrifikasi (meliputi Hybrid Battery Pack, Inverter, Battery Control Module, Main Battery Pack, thermal management) selama 8 tahun atau 160.000 km. Semua garansi ini sudah include otomatis tanpa biaya tambahan.
+    17. ATURAN FITUR KESELAMATAN (TSS): Anda DILARANG KERAS menyebutkan bahwa suatu mobil dilengkapi dengan "Toyota Safety Sense" atau "TSS" kecuali kata "TSS" atau "Toyota Safety Sense" SECARA EKSPLISIT tertulis pada spesifikasi mobil tersebut di dalam <data_database>. Meskipun mobil tersebut memiliki satu atau beberapa fitur yang umumnya tergabung dalam paket TSS (seperti Pre-Collision Warning, Lane Departure Warning, Blind Spot Monitoring, dll), JANGAN menyimpulkan sendiri bahwa mobil tersebut memiliki TSS. Cukup sebutkan fitur-fiturnya secara individual persis seperti yang tertulis di database.
   `;
 
   // Murni stateless (tanpa ingatan chatHistory) untuk menghemat limit token secara maksimal.
