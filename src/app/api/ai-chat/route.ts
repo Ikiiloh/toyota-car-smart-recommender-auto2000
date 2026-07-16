@@ -583,9 +583,16 @@ async function cariKonteksHybrid(
       ? "bbm_kota DESC, jarak ASC"
       : "jarak ASC"; // Biarkan vector search bekerja sepenuhnya
 
-    const rnOrder = queryIrit
-      ? "bbm_kota DESC"
-      : "vec_cosine_distance(embedding, ?)";
+    let rnOrder = "";
+    let useVectorForRn = false;
+    if (queryIrit) {
+      rnOrder = "bbm_kota DESC";
+    } else if (budgetMax !== null) {
+      rnOrder = `ABS(harga - ${budgetMax}) ASC`;
+    } else {
+      rnOrder = "vec_cosine_distance(embedding, ?)";
+      useVectorForRn = true;
+    }
 
     const sql = `
       SELECT tipe_mobil, varian, harga, spesifikasi_detail, jarak, bbm_kota, bbm_tol FROM (
@@ -601,7 +608,7 @@ async function cariKonteksHybrid(
     `;
 
     const params: any[] = [vektorStr];
-    if (!queryIrit) {
+    if (useVectorForRn) {
       params.push(vektorStr);
     }
     params.push(...budgetParams);
