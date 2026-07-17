@@ -63,7 +63,7 @@ interface SelfQuery {
   budget_min: number | null;
   budget_max: number | null;
   price_sort: "termurah" | "termahal" | "keduanya" | null;
-  is_hybrid: boolean | null;
+  engine_type: "bensin" | "hybrid" | "ev" | "diesel" | null;
   seats: number | null;
   is_fuel_efficient: boolean;
   is_listing: boolean;
@@ -90,20 +90,20 @@ function generateAliases(fullName: string, dynamicBlacklist: Set<string>): strin
   aliases.add(stripped); // nama tanpa prefix toyota/new
 
   const words = stripped.split(/\s+/);
-  
+
   // Generate semua kombinasi kata berurutan (N-Grams)
   for (let start = 0; start < words.length; start++) {
     for (let end = start + 1; end <= words.length; end++) {
       const phraseWords = words.slice(start, end);
       const phrase = phraseWords.join(" ");
-      
+
       // Jika hanya 1 kata
       if (phraseWords.length === 1) {
         const wordLower = phrase.toLowerCase();
-        
+
         // Daftar hitam manual (karena kadang kata "hybrid"/"sport" tidak sengaja masuk ke kolom tipe_mobil di DB)
         const staticBlacklist = ["hybrid", "hev", "ev", "gr", "sport", "gr-s", "mt", "at", "cvt"];
-        
+
         // Hanya tambahkan jika panjangnya > 2 dan tidak masuk daftar hitam dinamis & statis
         if (wordLower.length > 2 && !dynamicBlacklist.has(wordLower) && !staticBlacklist.includes(wordLower)) {
           aliases.add(phrase);
@@ -141,7 +141,7 @@ async function fetchModelNames(): Promise<string[]> {
       const stripped = model.replace(STRIP_PREFIXES, "").trim();
       const words = stripped.split(/\s+/);
       const firstWord = words[0]; // Contoh: "yaris", "innova", "corolla"
-      
+
       for (const w of words) {
         if (!wordToFirstWords.has(w)) wordToFirstWords.set(w, new Set());
         wordToFirstWords.get(w)!.add(firstWord);
@@ -303,7 +303,7 @@ async function getHuggingFaceEmbedding(
 // --- Query Expansion / Query Rewriting
 async function rewriteQueryForRAG(message: string, chatHistory: { role: string; content: string }[]): Promise<SelfQuery> {
   const apiKey = process.env.GOOGLE_API_KEY_RAG || process.env.GOOGLE_API_KEY;
-  const defaultFallback: SelfQuery = { semantic_query: message, exact_keywords: [], exclude_keywords: [], budget_min: null, budget_max: null, price_sort: null, is_hybrid: null, seats: null, is_fuel_efficient: false, is_listing: false };
+  const defaultFallback: SelfQuery = { semantic_query: message, exact_keywords: [], exclude_keywords: [], budget_min: null, budget_max: null, price_sort: null, engine_type: null, seats: null, is_fuel_efficient: false, is_listing: false };
   if (!apiKey) return defaultFallback;
 
   try {
@@ -326,12 +326,12 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
       - "semantic_query": Tulis ulang pertanyaan menjadi kata kunci pencarian teknis otomotif (string). JANGAN masukkan harga atau syarat mutlak di sini.
       - "exact_keywords": Array of strings. Jika kustomer meminta fitur HARGA MATI, masukkan sinonimnya ke sini. 
          Contoh: jika minta "sunroof" atau "atap kaca", masukkan ["sunroof", "moonroof", "panoramic roof"]. Jika minta "captain seat", masukkan ["captain seat"]. DILARANG memasukkan nama model mobil ke sini.
-      - "exclude_keywords": Array of strings. Jika kustomer minta "TIDAK MAU X" atau "SELAIN X".
+      - "exclude_keywords": Array of strings. Jika kustomer minta "TIDAK MAU X" atau "SELAIN X". Selain itu, jika kustomer mencari mobil penumpang / harian / perkotaan / keluarga, OTOMATIS masukkan kata-kata komersial ke exclude_keywords (contoh: ["truk", "pick up", "pickup", "cab-chs", "komersial"]).
       - "budget_min": Angka murni (number) batas BAWAH harga dalam Rupiah. Jika kustomer bilang "di atas 200 juta", isi 200000000. Jika tidak ada batas bawah, isi null.
       - "budget_max": Angka murni (number) batas ATAS harga dalam Rupiah. Jika kustomer bilang "di bawah 300 juta" atau "budget 300 juta", isi 300000000. Jika tidak ada batas atas, isi null.
       - CATATAN KHUSUS: Jika kustomer bilang "200 jutaan", artinya budget_min = 200000000 dan budget_max = 299999999.
-      - "price_sort": Pilih "termurah" (minta harga terendah), "termahal" (minta tertinggi), "keduanya" (HANYA JIKA kustomer meminta rentang harga termurah sekaligus termahal, misal: "range harga avanza?"), atau null (jika hanya membandingkan 2 hal).
-      - "is_hybrid": true (hanya mau hybrid/EV), false (hanya mau bensin murni), atau null (bebas).
+      - "price_sort": "termurah" (HANYA JIKA kustomer meminta harga paling murah/terendah), "termahal" (HANYA JIKA kustomer meminta harga paling mahal/tertinggi), "keduanya" (HANYA JIKA kustomer EKSPLISIT meminta rentang harga termurah DAN termahal sekaligus, misal: "range harga avanza berapa?"). JIKA KUSTEMER HANYA MENANYAKAN DAFTAR HARGA / "BESERTA HARGANYA" ATAU HANYA MENANYAKAN REKOMENDASI MOBIL, WAJIB ISI null!
+      - "engine_type": "bensin" (hanya bensin murni), "hybrid" (hanya hybrid/HEV), "ev" (hanya listrik murni/BEV), "diesel" (hanya mesin diesel), atau null (bebas).
       - "seats": 5, 7, 16 (untuk minibus), atau null.
       - "is_fuel_efficient": true (jika mencari mobil irit bbm/hemat/efisien), false jika tidak.
       - "is_listing": true (jika kustomer meminta "apa saja", "daftar", "tampilkan semua"), false jika tidak.
@@ -351,24 +351,24 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: promptText }] }],
       systemInstruction: { role: "user", parts: [{ text: systemInstruction }] },
-      generationConfig: { 
-        temperature: 0.1, 
+      generationConfig: {
+        temperature: 0.1,
         maxOutputTokens: 500,
-        responseMimeType: "application/json" 
+        responseMimeType: "application/json"
       },
     });
 
     const rewrittenStr = result.response.text().trim();
     console.log(`[RAG Self-Query] Result:`, rewrittenStr);
     const selfQuery: SelfQuery = JSON.parse(rewrittenStr);
-    
+
     // Fallback normalization
     selfQuery.semantic_query = selfQuery.semantic_query || message;
     selfQuery.exact_keywords = selfQuery.exact_keywords || [];
     selfQuery.exclude_keywords = selfQuery.exclude_keywords || [];
     selfQuery.budget_min = selfQuery.budget_min || null;
     selfQuery.budget_max = selfQuery.budget_max || null;
-    
+
     return selfQuery;
   } catch (err) {
     console.error("[RAG Self-Query] Error, falling back to default:", err);
@@ -391,7 +391,7 @@ async function cariKonteksHybrid(
   }
   const queryIrit = selfQuery.is_fuel_efficient;
   const queryHarga = selfQuery.price_sort;
-  const hybridFilter = selfQuery.is_hybrid;
+  const engineType = selfQuery.engine_type;
   const queryListing = selfQuery.is_listing;
   const seaterFilter = selfQuery.seats;
   const expandedQuery = selfQuery.semantic_query;
@@ -414,16 +414,26 @@ async function cariKonteksHybrid(
   let excludeFilter = "";
   const allExcludes = [...new Set([...excluded, ...(selfQuery.exclude_keywords || [])])];
   if (allExcludes.length > 0) {
-    const conditions = allExcludes.map((m) => `(LOWER(tipe_mobil) NOT LIKE '%${m}%' AND LOWER(spesifikasi_detail) NOT LIKE '%${m}%')`).join(" AND ");
+    const conditions = allExcludes.map((m) => {
+      const kw = m.toLowerCase().trim();
+      if (kw === 'truk') {
+        return `(LOWER(tipe_mobil) NOT LIKE '%truk%' AND LOWER(spesifikasi_detail) NOT LIKE '% truk %' AND LOWER(spesifikasi_detail) NOT LIKE 'truk %' AND LOWER(spesifikasi_detail) NOT LIKE '% truk')`;
+      }
+      return `(LOWER(tipe_mobil) NOT LIKE '%${kw}%' AND LOWER(spesifikasi_detail) NOT LIKE '%${kw}%')`;
+    }).join(" AND ");
     excludeFilter = ` AND (${conditions})`;
   }
 
-  // Build hybrid filter clause
+  // Build hybrid/ev filter clause
   let hybridClause = "";
-  if (hybridFilter === false) {
-    hybridClause = " AND (LOWER(varian) NOT LIKE '%hybrid%' AND LOWER(varian) NOT LIKE '%hev%' AND LOWER(varian) NOT LIKE '%ev%' AND LOWER(tipe_mobil) NOT LIKE '%hybrid%' AND LOWER(tipe_mobil) NOT LIKE '%hev%' AND LOWER(tipe_mobil) NOT LIKE '%ev%')";
-  } else if (hybridFilter === true) {
-    hybridClause = " AND (LOWER(varian) LIKE '%hybrid%' OR LOWER(varian) LIKE '%hev%' OR LOWER(varian) LIKE '%ev%' OR LOWER(tipe_mobil) LIKE '%hybrid%' OR LOWER(tipe_mobil) LIKE '%hev%' OR LOWER(tipe_mobil) LIKE '%ev%')";
+  if (engineType === "bensin" || (selfQuery as any).is_hybrid === false) {
+    hybridClause = " AND (LOWER(varian) NOT LIKE '%hybrid%' AND LOWER(varian) NOT LIKE '%hev%' AND LOWER(varian) NOT LIKE '%ev%' AND LOWER(varian) NOT LIKE '%bev%' AND LOWER(tipe_mobil) NOT LIKE '%hybrid%' AND LOWER(tipe_mobil) NOT LIKE '%hev%' AND LOWER(tipe_mobil) NOT LIKE '%ev%' AND LOWER(tipe_mobil) NOT LIKE '%bev%' AND LOWER(spesifikasi_detail) NOT LIKE '%diesel%')";
+  } else if (engineType === "hybrid" || (selfQuery as any).is_hybrid === true) {
+    hybridClause = " AND (LOWER(varian) LIKE '%hybrid%' OR LOWER(varian) LIKE '%hev%' OR LOWER(tipe_mobil) LIKE '%hybrid%' OR LOWER(tipe_mobil) LIKE '%hev%')";
+  } else if (engineType === "ev") {
+    hybridClause = " AND (LOWER(varian) LIKE '%bev%' OR LOWER(tipe_mobil) LIKE '%bev%' OR LOWER(spesifikasi_detail) LIKE '%battery electric vehicle%')";
+  } else if (engineType === "diesel") {
+    hybridClause = " AND (LOWER(spesifikasi_detail) LIKE '%diesel%')";
   }
 
   // Build seater filter clause
@@ -466,7 +476,7 @@ async function cariKonteksHybrid(
     let koneksiHarga: mysql.Connection | undefined;
     try {
       koneksiHarga = await getDbConnection();
-      
+
       const runPriceQuery = async (filters: string, bParams: any[]) => {
         let sql = '';
         if (isSpecificModel) {
@@ -555,7 +565,7 @@ async function cariKonteksHybrid(
 
   // --- NORMAL PATH: Vector similarity search ---
   console.log(
-    `[DEBUG] Irit: ${queryIrit}, BudgetMin: ${budgetMin}, BudgetMax: ${budgetMax}, Specific Model: ${isSpecificModel}, HybridFilter: ${hybridFilter}, Listing: ${queryListing}`
+    `[DEBUG] Irit: ${queryIrit}, BudgetMin: ${budgetMin}, BudgetMax: ${budgetMax}, Specific Model: ${isSpecificModel}, EngineType: ${engineType}, Listing: ${queryListing}`
   );
 
   // Get embedding vector from HuggingFace (menggunakan expandedQuery untuk akurasi semantik)
@@ -781,7 +791,7 @@ export async function POST(req: Request) {
 
     // --- STEP 1: Jalankan Self-Query (JSON) ---
     const selfQuery = await rewriteQueryForRAG(message, chatHistory);
-    
+
     // --- STEP 2: RAG Context Retrieval ---
     const konteks = await cariKonteksHybrid(selfQuery, message, chatHistory);
 
@@ -873,7 +883,7 @@ export async function POST(req: Request) {
 
     if (budgetStr) debugInfo.push(`Budget: ${budgetStr}`);
     if (selfQuery.seats) debugInfo.push(`Kursi: ${selfQuery.seats}`);
-    if (selfQuery.is_hybrid !== null) debugInfo.push(`Mesin: ${selfQuery.is_hybrid ? 'Hybrid/EV' : 'Bensin'}`);
+    if (selfQuery.engine_type !== null) debugInfo.push(`Mesin: ${selfQuery.engine_type}`);
     if (selfQuery.price_sort) debugInfo.push(`Sort: ${selfQuery.price_sort}`);
     if (selfQuery.is_fuel_efficient) debugInfo.push(`Irit: Ya`);
 
