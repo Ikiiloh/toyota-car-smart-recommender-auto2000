@@ -431,9 +431,18 @@ export default function ChatInterface() {
     return cars;
   };
 
+  const hasPendingTopicChoice = messages.some((msg, idx) => {
+    return (
+      msg.role === "assistant" &&
+      !respondedTopicMessages[idx] &&
+      topicStartIndex <= idx + 1 &&
+      parseContextCars(contextData[idx] || "").length > 0
+    );
+  });
+
   const sendMessage = async (messageText?: string) => {
     const text = messageText || input.trim();
-    if (!text || isLoading) return;
+    if (!text || isLoading || hasPendingTopicChoice) return;
 
     const userMessage: Message = { role: "user", content: text };
     const newMessages = [...messages, userMessage];
@@ -595,13 +604,13 @@ export default function ChatInterface() {
                 value={input}
                 onChange={handleTextareaInput}
                 onKeyDown={handleKeyDown}
-                placeholder="Ketik kriteria Anda di sini... (Contoh: 'Innova hybrid irit bbm di bawah 600 juta')"
+                placeholder={hasPendingTopicChoice ? "Silakan pilih Lanjutkan Topik atau Topik Baru..." : "Ketik kriteria Anda di sini... (Contoh: 'Innova hybrid irit bbm di bawah 600 juta')"}
                 className="w-full bg-transparent border-0 resize-none outline-none focus:ring-0 text-sm md:text-base py-3 px-4 min-h-[64px] max-h-[150px] scrollbar-none placeholder:text-muted-foreground/60 text-foreground"
-                disabled={isLoading}
+                disabled={isLoading || hasPendingTopicChoice}
               />
               <Button
                 onClick={() => sendMessage()}
-                disabled={!input.trim() || isLoading}
+                disabled={!input.trim() || isLoading || hasPendingTopicChoice}
                 className="h-12 w-12 rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/15 transition-all duration-300 hover:shadow-red-500/35 flex-shrink-0 flex items-center justify-center disabled:opacity-50"
                 size="icon"
               >
@@ -887,15 +896,15 @@ export default function ChatInterface() {
                   value={input}
                   onChange={handleTextareaInput}
                   onKeyDown={handleKeyDown}
-                  placeholder="Ketik kriteria/pertanyaan lanjutan Anda di sini..."
+                  placeholder={hasPendingTopicChoice ? "Silakan pilih Lanjutkan Topik atau Topik Baru..." : "Ketik kriteria/pertanyaan lanjutan Anda di sini..."}
                   rows={1}
                   className="w-full resize-none rounded-2xl border border-border/80 bg-muted/40 px-4 py-3.5 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all placeholder:text-muted-foreground/50 text-foreground"
-                  disabled={isLoading}
+                  disabled={isLoading || hasPendingTopicChoice}
                 />
               </div>
               <Button
                 onClick={() => sendMessage()}
-                disabled={!input.trim() || isLoading}
+                disabled={!input.trim() || isLoading || hasPendingTopicChoice}
                 className="h-11 w-11 rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/15 hover:shadow-red-500/35 transition-all flex-shrink-0"
                 size="icon"
               >
