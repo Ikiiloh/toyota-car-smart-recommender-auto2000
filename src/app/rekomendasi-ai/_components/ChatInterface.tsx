@@ -57,7 +57,7 @@ interface CarDetail {
 
 const WELCOME_MESSAGE = `Selamat datang di **Layanan Konsultasi Digital Auto2000 Rantauprapat**! 🚗✨
 
-Saya adalah asisten virtual berbasis kecerdasan buatan (AI) dan RAG (Retrieval-Augmented Generation). Saya siap membantu Bapak/Ibu menemukan unit Toyota terbaik dengan harga OTR Labuhanbatu secara cepat dan akurat.
+Saya adalah asisten virtual konsultan resmi Auto2000. Saya siap membantu Bapak/Ibu menemukan unit Toyota terbaik dengan harga OTR Labuhanbatu secara cepat dan akurat.
 
 Silakan ketik kriteria mobil idaman Anda di bawah ini, atau gunakan salah satu rekomendasi pencarian kami.`;
 
@@ -81,12 +81,8 @@ const SUGGESTION_CHIPS = [
 ];
 
 const RADAR_STATUSES = [
-  "Menghubungkan ke kluster TiDB Cloud...",
-  "Mengirimkan query hybrid vector search...",
-  "Menghitung relevansi cosine distance...",
-  "Memindai database unit Toyota Rantauprapat...",
-  "Mengevaluasi spesifikasi & efisiensi bahan bakar...",
-  "Memformulasikan penjelasan rekomendasi AI..."
+  "Loading Data...",
+  "Loading Data..."
 ];
 
 // --- Custom SVGs representing car shapes ---
@@ -204,17 +200,12 @@ function RadarLoader() {
         </div>
       </div>
 
-      {/* Status descriptions */}
+      {/* Status description */}
       <div className="mt-8 text-center space-y-2.5 max-w-sm relative z-10">
-        <h4 className="text-sm font-bold text-foreground tracking-wide uppercase flex items-center justify-center gap-2">
-          <Database className="w-4 h-4 text-red-500 animate-pulse" />
-          Memindai Database Toyota
+        <h4 className="text-sm font-bold text-foreground tracking-wide flex items-center justify-center gap-2">
+          <Sparkles className="w-4 h-4 text-red-500 animate-pulse" />
+          Loading Data...
         </h4>
-        <div className="h-5 flex items-center justify-center">
-          <p className="text-xs text-muted-foreground animate-fade-in font-medium transition-all duration-300">
-            {RADAR_STATUSES[statusIdx]}
-          </p>
-        </div>
 
         {/* Progress simulator bars */}
         <div className="w-44 h-1.5 bg-muted rounded-full mx-auto overflow-hidden border border-border/40">
@@ -335,8 +326,43 @@ export default function ChatInterface() {
     }
   }, [isZeroState]);
 
-  // Parse OTR context blocks into structured lists of Cars
-  const parseContextCars = (contextStr: string): CarDetail[] => {
+  // Helper untuk mengecek apakah suatu mobil dari DB secara eksplisit disebut/direkomendasikan di teks jawaban Gemini AI
+  const isCarMentionedInText = (carName: string, text: string): boolean => {
+    if (!text || !carName) return false;
+    const lowerText = text.toLowerCase();
+
+    // Hapus prefix umum seperti "Toyota", "All New", "New", dll.
+    const cleanName = carName.toLowerCase().replace(/^(toyota\s+)?(all\s+new\s+|new\s+)?/i, "").trim();
+    const words = cleanName.split(/\s+/);
+
+    if (words.length === 0) return false;
+
+    const firstWord = words[0];
+    const secondWord = words[1];
+
+    // Kasus 1: Model keluarga dengan 2 kata spesifik (misal: "yaris cross", "innova zenix", "corolla cross", "corolla altis", "land cruiser", "hilux rangga")
+    if (secondWord && ["cross", "zenix", "altis", "cruiser", "rangga", "hev", "bev"].includes(secondWord)) {
+      const family = `${firstWord} ${secondWord}`;
+      if (lowerText.includes(family)) {
+        return true;
+      }
+    }
+
+    // Kasus 2: Cek khusus untuk "yaris" biasa vs "yaris cross"
+    if (firstWord === "yaris" && !cleanName.includes("cross") && lowerText.includes("yaris cross") && !lowerText.includes("gr yaris") && !lowerText.includes("yaris sport") && !lowerText.includes("yaris 1.5")) {
+      return false;
+    }
+
+    // Kasus 3: Cek kata pertama nama model (misal: "voxy", "fortuner", "zenix", "veloz", "avanza", "agya", "calya", "rush", "raize", "vios", "camry", "alphard", "vellfire", "bz4x")
+    if (lowerText.includes(firstWord)) {
+      return true;
+    }
+
+    return false;
+  };
+
+  // Parse OTR context blocks into structured lists of Cars, filtered ONLY to cars mentioned by Gemini AI
+  const parseContextCars = (contextStr: string, assistantContent?: string): CarDetail[] => {
     if (!contextStr) return [];
     const cars: CarDetail[] = [];
     // Split on each database block starts
@@ -353,6 +379,11 @@ export default function ChatInterface() {
 
       if (nameMatch) {
         const name = nameMatch[1].trim();
+
+        // Hanya sertakan mobil jika SEBENARNYA DISEBUT/DIREKOMENDASIKAN di teks jawaban Gemini AI
+        if (assistantContent && !isCarMentionedInText(name, assistantContent)) {
+          continue;
+        }
         const price = priceMatch ? priceMatch[1].trim() : "Hubungi Dealer";
         const bbmKota = bbmKotaMatch ? bbmKotaMatch[1].trim() : "";
         const bbmTol = bbmTolMatch ? bbmTolMatch[1].trim() : "";
@@ -436,7 +467,7 @@ export default function ChatInterface() {
       msg.role === "assistant" &&
       !respondedTopicMessages[idx] &&
       topicStartIndex <= idx + 1 &&
-      parseContextCars(contextData[idx] || "").length > 0
+      parseContextCars(contextData[idx] || "", messages[idx]?.content || "").length > 0
     );
   });
 
@@ -572,7 +603,7 @@ export default function ChatInterface() {
             </h1>
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500/20" />
-              Gemini + TiDB Hybrid Search
+              Asisten Konsultasi Digital
             </p>
           </div>
         </div>
@@ -646,7 +677,7 @@ export default function ChatInterface() {
           {/* Scrollable Message Box */}
           <div className="flex-1 overflow-y-auto px-1 py-4 space-y-6 scrollbar-thin scrollbar-thumb-muted">
             {messages.map((msg, idx) => {
-              const cars = msg.role === "assistant" ? parseContextCars(contextData[idx] || "") : [];
+              const cars = msg.role === "assistant" ? parseContextCars(contextData[idx] || "", msg.content) : [];
 
               return (
                 <div
@@ -681,40 +712,6 @@ export default function ChatInterface() {
                         </div>
                       ) : (
                         <p className="text-sm font-medium leading-relaxed">{msg.content}</p>
-                      )}
-
-                      {/* Debug contexts toggle */}
-                      {msg.role === "assistant" && contextData[idx] && (
-                        <div className="mt-4 pt-3 border-t border-border/50">
-                          <button
-                            onClick={() =>
-                              setShowContext(
-                                showContext === `ctx-${idx}` ? null : `ctx-${idx}`
-                              )
-                            }
-                            className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
-                          >
-                            <Database className="w-3.5 h-3.5 text-red-500" />
-                            <span>Data Analisis RAG TiDB</span>
-                            <ChevronDown
-                              className={`w-3 h-3 transition-transform duration-300 ${showContext === `ctx-${idx}` ? "rotate-180" : ""
-                                }`}
-                            />
-                          </button>
-                          {showContext === `ctx-${idx}` && (
-                            <pre className="mt-3 p-3 bg-muted rounded-xl text-[10px] font-mono overflow-x-auto border text-muted-foreground max-h-48 overflow-y-auto leading-relaxed shadow-inner">
-                              {contextData[idx]}
-                            </pre>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Tampilkan kata kunci hasil query expansion */}
-                      {msg.role === "assistant" && msg.rewrittenQuery && (
-                        <div className="mt-2.5 px-3 py-2 bg-yellow-500/5 dark:bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex items-center gap-1.5 text-[11px] text-yellow-600 dark:text-yellow-400 font-medium">
-                          <Zap className="w-3.5 h-3.5 flex-shrink-0" />
-                          <span><strong>Kata Kunci AI RAG:</strong> <em>{msg.rewrittenQuery}</em></span>
-                        </div>
                       )}
                     </div>
 

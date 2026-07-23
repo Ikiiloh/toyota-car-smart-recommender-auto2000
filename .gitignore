@@ -58,3 +58,4 @@ client_secret.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+HYBRID_RAG_WORKFLOW.md

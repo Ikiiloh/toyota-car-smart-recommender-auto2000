@@ -5,13 +5,13 @@ import { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Rekomendasi Mobil AI | Toyota Rantauprapat",
   description:
-    "Dapatkan rekomendasi mobil Toyota yang sesuai dengan kebutuhan Anda menggunakan teknologi AI RAG (Retrieval-Augmented Generation). Temukan mobil impian Anda dengan bantuan sistem rekomendasi pintar kami.",
+    "Dapatkan rekomendasi mobil Toyota yang sesuai dengan kebutuhan Anda menggunakan sistem rekomendasi pintar kami. Temukan mobil impian Anda dengan bantuan asisten digital Auto2000.",
   keywords:
-    "rekomendasi mobil toyota, ai toyota, mobil toyota sesuai kebutuhan, sistem rekomendasi mobil, toyota rantauprapat, RAG AI",
+    "rekomendasi mobil toyota, ai toyota, mobil toyota sesuai kebutuhan, sistem rekomendasi mobil, toyota rantauprapat",
   openGraph: {
     title: "Rekomendasi Mobil AI Toyota Rantauprapat",
     description:
-      "Temukan mobil Toyota yang tepat untuk Anda dengan bantuan AI RAG",
+      "Temukan mobil Toyota yang tepat untuk Anda dengan bantuan sistem rekomendasi pintar Auto2000",
     locale: "id_ID",
     type: "website",
   },

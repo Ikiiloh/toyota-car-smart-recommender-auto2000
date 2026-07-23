@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import mysql from "mysql2/promise";
 import { Redis } from "@upstash/redis";
 
@@ -233,9 +233,22 @@ async function getDbConnection() {
 }
 
 // --- Get HuggingFace Embedding ---
+// --- In-Memory Embedding Cache for BGE-M3 ---
+const embeddingCache = new Map<string, { vector: number[]; timestamp: number }>();
+const EMBEDDING_CACHE_TTL_MS = 15 * 60 * 1000; // 15 menit
+
 async function getHuggingFaceEmbedding(
   text: string
 ): Promise<number[] | null> {
+  const cacheKey = text.trim().toLowerCase();
+  const now = Date.now();
+  const cached = embeddingCache.get(cacheKey);
+
+  if (cached && (now - cached.timestamp) < EMBEDDING_CACHE_TTL_MS) {
+    console.log(`[HF Cache Hit] Using cached embedding for: "${cacheKey.substring(0, 30)}..."`);
+    return cached.vector;
+  }
+
   try {
     const spaceUrl =
       process.env.HUGGINGFACE_SPACE_URL || "https://ikiiloh-rag-car.hf.space";
@@ -284,6 +297,7 @@ async function getHuggingFaceEmbedding(
             // Response is [dense_vector, quota_markdown, explanation_markdown]
             const vector = Array.isArray(jsonData[0]) ? jsonData[0] : jsonData;
             console.log(`[HF] Embedding received, length: ${vector.length}`);
+            embeddingCache.set(cacheKey, { vector, timestamp: Date.now() });
             return vector;
           }
         } catch (parseErr) {
@@ -324,13 +338,21 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
       
       ATURAN EKSTRAKSI JSON:
       - "semantic_query": Tulis ulang pertanyaan menjadi kata kunci pencarian teknis otomotif (string). JANGAN masukkan harga atau syarat mutlak di sini.
-      - "exact_keywords": Array of strings. Jika kustomer meminta fitur HARGA MATI, masukkan sinonimnya ke sini. 
-         Contoh: jika minta "sunroof" atau "atap kaca", masukkan ["sunroof", "moonroof", "panoramic roof"]. Jika minta "captain seat", masukkan ["captain seat"]. DILARANG memasukkan nama model mobil ke sini.
+      - "exact_keywords": Array of strings. Jika kustomer meminta fitur HARGA MATI / spesifik, masukkan kata kunci fiturnya ke sini secara spesifik (DILARANG menggabungkan jenis atap yang berbeda fungsi).
+         ATURAN PEMISAHAN SPESIFIKASI ATAP KACA:
+         - Jika kustomer minta "sunroof", masukkan HANYA ["sunroof"]. (DILARANG memasukkan panoramic atau moonroof).
+         - Jika kustomer minta "panoramic" / "panoramic roof" / "panoramic glass roof", masukkan HANYA ["panoramic roof", "panoramic"]. (DILARANG memasukkan sunroof atau moonroof).
+         - Jika kustomer minta "moonroof", masukkan HANYA ["moonroof"]. (DILARANG memasukkan sunroof atau panoramic).
+         - Jika kustomer minta "atap kaca" (istilah generik), baru boleh memasukkan ["atap kaca", "sunroof", "panoramic", "moonroof"].
+         FITUR LAINNYA:
+         - Jika kustomer minta "captain seat", masukkan ["captain seat"].
+         - Jika kustomer minta "kamera 360", masukkan ["360 camera", "around view", "kamera 360"].
+         - DILARANG memasukkan nama model mobil ke sini.
       - "exclude_keywords": Array of strings. Jika kustomer minta "TIDAK MAU X" atau "SELAIN X". Selain itu, jika kustomer mencari mobil penumpang / harian / perkotaan / keluarga, OTOMATIS masukkan kata-kata komersial ke exclude_keywords (contoh: ["truk", "pick up", "pickup", "cab-chs", "komersial"]).
       - "budget_min": Angka murni (number) batas BAWAH harga dalam Rupiah. Jika kustomer bilang "di atas 200 juta", isi 200000000. Jika tidak ada batas bawah, isi null.
       - "budget_max": Angka murni (number) batas ATAS harga dalam Rupiah. Jika kustomer bilang "di bawah 300 juta" atau "budget 300 juta", isi 300000000. Jika tidak ada batas atas, isi null.
       - CATATAN KHUSUS: Jika kustomer bilang "200 jutaan", artinya budget_min = 200000000 dan budget_max = 299999999.
-      - "price_sort": "termurah" (HANYA JIKA kustomer meminta harga paling murah/terendah), "termahal" (HANYA JIKA kustomer meminta harga paling mahal/tertinggi), "keduanya" (HANYA JIKA kustomer EKSPLISIT meminta rentang harga termurah DAN termahal sekaligus, misal: "range harga avanza berapa?"). JIKA KUSTEMER HANYA MENANYAKAN DAFTAR HARGA / "BESERTA HARGANYA" ATAU HANYA MENANYAKAN REKOMENDASI MOBIL, WAJIB ISI null!
+      - "price_sort": "termurah" (HANYA JIKA kustomer EKSPLISIT menggunakan kata "termurah", "paling murah", "terendah" dalam pesan kustomer), "termahal" (HANYA JIKA kustomer EKSPLISIT menggunakan kata "termahal", "paling mahal", "tertinggi"), "keduanya" (HANYA JIKA kustomer EKSPLISIT meminta rentang harga termurah DAN termahal sekaligus). JIKA KUSTOMER TIDAK MENGGUNAKAN KATA "TERMURAH" ATAU "TERMAHAL" DI PESANNYA, WAJIB ISI null!
       - "engine_type": "bensin" (hanya bensin murni), "hybrid" (hanya hybrid/HEV), "ev" (hanya listrik murni/BEV), "diesel" (hanya mesin diesel), atau null (bebas).
       - "seats": 5, 7, 16 (untuk minibus), atau null.
       - "is_fuel_efficient": true (jika mencari mobil irit bbm/hemat/efisien), false jika tidak.
@@ -347,6 +369,39 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
       - Jika kustomer menanyakan istilah-istilah di atas, tulis ulang semantic_query menggunakan sinonim yang lebih kaya agar pencarian vektor lebih akurat (misal: "cab chassis sasis kosong karoseri boks komersial").
     `;
 
+    const selfQuerySchema = {
+      type: SchemaType.OBJECT,
+      properties: {
+        semantic_query: { type: SchemaType.STRING, description: "Kata kunci pencarian teknis otomotif tanpa harga" },
+        exact_keywords: {
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
+          description: "Array kata kunci fitur harga mati seperti panoramic roof, moonroof, sunroof, captain seat"
+        },
+        exclude_keywords: {
+          type: SchemaType.ARRAY,
+          items: { type: SchemaType.STRING },
+          description: "Array kata kunci kecualian atau jenis komersial"
+        },
+        budget_min: { type: SchemaType.NUMBER, nullable: true, description: "Batas bawah harga Rupiah atau null" },
+        budget_max: { type: SchemaType.NUMBER, nullable: true, description: "Batas atas harga Rupiah atau null" },
+        price_sort: {
+          type: SchemaType.STRING,
+          nullable: true,
+          description: "termurah, termahal, keduanya, atau null"
+        },
+        engine_type: {
+          type: SchemaType.STRING,
+          nullable: true,
+          description: "bensin, hybrid, ev, diesel, atau null"
+        },
+        seats: { type: SchemaType.NUMBER, nullable: true, description: "Jumlah kursi (5, 7, 16) atau null" },
+        is_fuel_efficient: { type: SchemaType.BOOLEAN, description: "true jika mencari mobil irit/hemat BBM" },
+        is_listing: { type: SchemaType.BOOLEAN, description: "true jika meminta daftar/tampilkan semua" },
+      },
+      required: ["semantic_query", "exact_keywords", "exclude_keywords", "is_fuel_efficient", "is_listing"],
+    };
+
     const promptText = `${historyContext}Pertanyaan Kustomer Terbaru: "${message}"`;
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: promptText }] }],
@@ -354,7 +409,8 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
       generationConfig: {
         temperature: 0.1,
         maxOutputTokens: 500,
-        responseMimeType: "application/json"
+        responseMimeType: "application/json",
+        responseSchema: selfQuerySchema,
       },
     });
 
@@ -376,6 +432,162 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
   }
 }
 
+// --- BM25 Lexical Scorer & Reciprocal Rank Fusion (RRF) ---
+function calculateBM25Score(
+  query: string,
+  docText: string,
+  avgDocLen: number = 50,
+  k1: number = 1.2,
+  b: number = 0.75
+): number {
+  if (!query || !docText) return 0;
+
+  const tokenize = (text: string) =>
+    text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 1);
+
+  const queryTokens = tokenize(query);
+  const docTokens = tokenize(docText);
+  if (queryTokens.length === 0 || docTokens.length === 0) return 0;
+
+  const docLen = docTokens.length;
+  const docFreqMap: Record<string, number> = {};
+  for (const t of docTokens) {
+    docFreqMap[t] = (docFreqMap[t] || 0) + 1;
+  }
+
+  let score = 0;
+  for (const token of queryTokens) {
+    const tf = docFreqMap[token] || 0;
+    if (tf > 0) {
+      const tfNorm = (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (docLen / avgDocLen)));
+      score += tfNorm;
+    }
+  }
+
+  return score;
+}
+
+function combineRRF(candidates: any[], queryText: string): any[] {
+  if (!candidates || candidates.length === 0) return [];
+
+  // Sort by Vector distance ascending (rank 1 is smallest distance)
+  const vectorSorted = [...candidates].sort((a, b) => (parseFloat(a.jarak) || 0) - (parseFloat(b.jarak) || 0));
+
+  // Compute BM25 scores
+  const withBM25 = candidates.map((row) => {
+    const fullText = `${row.tipe_mobil || ''} ${row.varian || ''} ${typeof row.spesifikasi_detail === 'string' ? row.spesifikasi_detail : JSON.stringify(row.spesifikasi_detail || '')}`;
+    const bm25Score = calculateBM25Score(queryText, fullText);
+    return { row, bm25Score };
+  });
+
+  // Sort by BM25 score descending
+  const bm25Sorted = [...withBM25].sort((a, b) => b.bm25Score - a.bm25Score);
+
+  const vectorRankMap = new Map<any, number>();
+  vectorSorted.forEach((item, index) => vectorRankMap.set(item, index + 1));
+
+  const bm25RankMap = new Map<any, number>();
+  bm25Sorted.forEach((item, index) => bm25RankMap.set(item.row, index + 1));
+
+  const kConstant = 60;
+  const scored = candidates.map((row) => {
+    const vRank = vectorRankMap.get(row) || candidates.length;
+    const bRank = bm25RankMap.get(row) || candidates.length;
+    const rrfScore = (1 / (kConstant + vRank)) + (1 / (kConstant + bRank));
+    return { row, rrfScore };
+  });
+
+  // Sort by RRF score descending
+  scored.sort((a, b) => b.rrfScore - a.rrfScore);
+  return scored.map((s) => s.row);
+}
+
+// --- Helper for Dynamic Exact Keyword Feature Fallback Matching ---
+function hasFeatureMatch(hasil: any[], exactKeywords: string[]): boolean {
+  if (!exactKeywords || exactKeywords.length === 0) return true;
+  if (!hasil || hasil.length === 0) return false;
+
+  return hasil.some((row) => {
+    const text = `${row.tipe_mobil || ''} ${row.varian || ''} ${typeof row.spesifikasi_detail === 'string' ? row.spesifikasi_detail : JSON.stringify(row.spesifikasi_detail || '')}`.toLowerCase();
+    
+    return exactKeywords.some((kw) => {
+      const cleaned = kw.toLowerCase().trim();
+      if (!cleaned) return false;
+
+      // Special Toyota Feature Synonym Mappings
+      if (cleaned.includes("360") || cleaned.includes("around view") || cleaned.includes("kamera 360")) {
+        return text.includes("360") || text.includes("around view") || text.includes("panoramic view") || text.includes("pvm") || text.includes("kamera");
+      }
+      if (cleaned.includes("sunroof")) {
+        return text.includes("sunroof");
+      }
+      if (cleaned.includes("panoramic")) {
+        return text.includes("panoramic");
+      }
+      if (cleaned.includes("moonroof")) {
+        return text.includes("moonroof");
+      }
+      if (cleaned.includes("captain")) {
+        return text.includes("captain") || text.includes("kapten");
+      }
+      if (cleaned.includes("tss") || cleaned.includes("safety sense")) {
+        return text.includes("tss") || text.includes("safety sense");
+      }
+
+      // 1. Matched as exact phrase in text
+      if (text.includes(cleaned)) return true;
+
+      // 2. Matched as multi-word tokens
+      const words = cleaned.split(/\s+/).filter((w) => w.length > 2);
+      if (words.length > 1) {
+        return words.every((w) => text.includes(w));
+      }
+
+      return false;
+    });
+  });
+}
+
+function buildFeatureSqlCondition(exactKeywords: string[]): string {
+  if (!exactKeywords || exactKeywords.length === 0) return "";
+  const clauses: string[] = [];
+
+  for (const kw of exactKeywords) {
+    const cleaned = kw.toLowerCase().trim().replace(/'/g, "''");
+    if (!cleaned) continue;
+
+    // Special Toyota Feature Synonym Mappings
+    if (cleaned.includes("360") || cleaned.includes("around view") || cleaned.includes("kamera 360")) {
+      clauses.push("(LOWER(spesifikasi_detail) LIKE '%360%' OR LOWER(spesifikasi_detail) LIKE '%around view%' OR LOWER(spesifikasi_detail) LIKE '%panoramic view%' OR LOWER(spesifikasi_detail) LIKE '%pvm%' OR LOWER(varian) LIKE '%360%')");
+    } else if (cleaned.includes("sunroof")) {
+      clauses.push("(LOWER(spesifikasi_detail) LIKE '%sunroof%' OR LOWER(varian) LIKE '%sunroof%')");
+    } else if (cleaned.includes("panoramic")) {
+      clauses.push("(LOWER(spesifikasi_detail) LIKE '%panoramic%' OR LOWER(varian) LIKE '%panoramic%')");
+    } else if (cleaned.includes("moonroof")) {
+      clauses.push("(LOWER(spesifikasi_detail) LIKE '%moonroof%' OR LOWER(varian) LIKE '%moonroof%')");
+    } else if (cleaned.includes("captain")) {
+      clauses.push("(LOWER(spesifikasi_detail) LIKE '%captain%' OR LOWER(spesifikasi_detail) LIKE '%kapten%')");
+    } else if (cleaned.includes("tss") || cleaned.includes("safety sense")) {
+      clauses.push("(LOWER(spesifikasi_detail) LIKE '%tss%' OR LOWER(spesifikasi_detail) LIKE '%safety sense%' OR LOWER(varian) LIKE '%tss%')");
+    } else {
+      const words = cleaned.split(/\s+/).filter((w) => w.length > 2);
+      if (words.length > 1) {
+        const tokenAnds = words.map((w) => `LOWER(spesifikasi_detail) LIKE '%${w}%'`).join(" AND ");
+        clauses.push(`((${tokenAnds}) OR LOWER(spesifikasi_detail) LIKE '%${cleaned}%' OR LOWER(varian) LIKE '%${cleaned}%')`);
+      } else {
+        clauses.push(`(LOWER(spesifikasi_detail) LIKE '%${cleaned}%' OR LOWER(varian) LIKE '%${cleaned}%')`);
+      }
+    }
+  }
+
+  if (clauses.length === 0) return "";
+  return ` AND (${clauses.join(" OR ")})`;
+}
+
 async function cariKonteksHybrid(
   selfQuery: SelfQuery,
   originalMessage: string,
@@ -395,6 +607,8 @@ async function cariKonteksHybrid(
   const queryListing = selfQuery.is_listing;
   const seaterFilter = selfQuery.seats;
   const expandedQuery = selfQuery.semantic_query;
+
+  let isFallbackFeature = false;
 
   // Ambil daftar model dari database (dengan cache 1 jam)
   const modelNames = await fetchModelNames();
@@ -446,16 +660,6 @@ async function cariKonteksHybrid(
     seaterClause = " AND (spesifikasi_detail LIKE '%16 orang%' OR spesifikasi_detail LIKE '%microbus%' OR spesifikasi_detail LIKE '%mikrobus%' OR tipe_mobil LIKE '%Hiace%')";
   }
 
-  // Build exact keywords filter clause
-  let keywordClause = "";
-  if (selfQuery.exact_keywords && selfQuery.exact_keywords.length > 0) {
-    // Gabungkan keyword yang berupa sinonim dengan OR, tapi antar kriteria dengan AND.
-    // Karena kita tidak tahu mana sinonim mana bukan, kita asumsikan semua di dalam array adalah fitur yang bisa jadi sinonim satu sama lain ATAU berdiri sendiri.
-    // Pendekatan lebih baik: LLM mengisi fitur dengan OR jika sinonim. Tapi format JSON flat array [fitur1, fitur2] berarti AND.
-    const kwConditions = selfQuery.exact_keywords.map((kw) => `LOWER(spesifikasi_detail) LIKE '%${kw.toLowerCase()}%'`).join(" OR ");
-    keywordClause = ` AND (${kwConditions})`;
-  }
-
   // Build budget filter clause
   let budgetClause = "";
   const budgetParams: number[] = [];
@@ -468,14 +672,20 @@ async function cariKonteksHybrid(
     budgetParams.push(budgetMax);
   }
 
-  const additionalFilters = `${modelFilter}${excludeFilter}${hybridClause}${seaterClause}${keywordClause}${budgetClause}`;
+  // Catatan: Pencocokan kata kunci fitur (exact_keywords) kini ditangani secara fleksibel oleh BM25 + RRF
+  // sehingga tidak lagi membutuhkan filter SQL LIKE yang kaku (mencegah 0-result).
+  const additionalFilters = `${modelFilter}${excludeFilter}${hybridClause}${seaterClause}${budgetClause}`;
 
-  // --- FAST PATH: Jika user bertanya termurah/termahal, bypass vector search ---
-  if (queryHarga) {
+  // --- FAST PATH: Direct SQL Query HANYA jika user menanyakan harga murni tanpa fitur spesifik ---
+  // Jika ada exact_keywords (misal: "mobil sunroof termurah"), WAJIB lewat Dual-Retrieval Hybrid Search agar fitur tidak bypass!
+  if (queryHarga && selfQuery.exact_keywords.length === 0) {
     console.log(`[RAG Price Compare] Detected: "${queryHarga}" with filters: "${additionalFilters}" — bypassing vector search`);
     let koneksiHarga: mysql.Connection | undefined;
     try {
       koneksiHarga = await getDbConnection();
+
+      const featureClause = buildFeatureSqlCondition(selfQuery.exact_keywords);
+      const effectivePriceFilters = `${additionalFilters}${featureClause}`;
 
       const runPriceQuery = async (filters: string, bParams: any[]) => {
         let sql = '';
@@ -496,43 +706,55 @@ async function cariKonteksHybrid(
         } else {
           if (queryHarga === 'keduanya') {
             sql = `
-              (SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol, 0 as jarak FROM data_mobil_hybrid
-               WHERE harga = (SELECT MIN(h2.harga) FROM data_mobil_hybrid h2 WHERE h2.tipe_mobil = data_mobil_hybrid.tipe_mobil) ${filters}
-               ORDER BY harga ASC LIMIT 3)
-              UNION ALL
-              (SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol, 0 as jarak FROM data_mobil_hybrid
-               WHERE harga = (SELECT MAX(h2.harga) FROM data_mobil_hybrid h2 WHERE h2.tipe_mobil = data_mobil_hybrid.tipe_mobil) ${filters}
-               ORDER BY harga DESC LIMIT 3)
+              SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol, 0 as jarak FROM (
+                SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol,
+                       ROW_NUMBER() OVER (PARTITION BY tipe_mobil ORDER BY harga ASC) AS rn
+                FROM data_mobil_hybrid
+                WHERE 1=1 ${filters}
+              ) ranked
+              WHERE rn = 1
+              ORDER BY harga ASC LIMIT 6
             `;
           } else if (queryHarga === 'termurah') {
             sql = `
-              SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol, 0 as jarak FROM data_mobil_hybrid
-              WHERE harga = (SELECT MIN(h2.harga) FROM data_mobil_hybrid h2 WHERE h2.tipe_mobil = data_mobil_hybrid.tipe_mobil) ${filters}
+              SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol, 0 as jarak FROM (
+                SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol,
+                       ROW_NUMBER() OVER (PARTITION BY tipe_mobil ORDER BY harga ASC) AS rn
+                FROM data_mobil_hybrid
+                WHERE 1=1 ${filters}
+              ) ranked
+              WHERE rn = 1
               ORDER BY harga ASC LIMIT 5
             `;
           } else {
             sql = `
-              SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol, 0 as jarak FROM data_mobil_hybrid
-              WHERE harga = (SELECT MAX(h2.harga) FROM data_mobil_hybrid h2 WHERE h2.tipe_mobil = data_mobil_hybrid.tipe_mobil) ${filters}
+              SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol, 0 as jarak FROM (
+                SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol,
+                       ROW_NUMBER() OVER (PARTITION BY tipe_mobil ORDER BY harga DESC) AS rn
+                FROM data_mobil_hybrid
+                WHERE 1=1 ${filters}
+              ) ranked
+              WHERE rn = 1
               ORDER BY harga DESC LIMIT 5
             `;
           }
-          // The subquery trick requires params twice (one for MIN, one for MAX) if it's 'keduanya', 
-          // but actually our filters don't contain parameters inside the MIN() subquery itself.
-          // Wait, additionalFilters comes AFTER the subquery.
-          const finalParams = queryHarga === 'keduanya' ? [...bParams, ...bParams] : bParams;
-          const [rows] = await koneksiHarga!.execute(sql, finalParams);
+          const [rows] = await koneksiHarga!.execute(sql, bParams);
           return rows as any[];
         }
       };
 
-      let hasil = await runPriceQuery(additionalFilters, budgetParams);
+      let hasil = await runPriceQuery(effectivePriceFilters, budgetParams);
 
-      // Fallback Upselling: Jika kustomer punya budget ketat namun tidak ada mobil dengan fitur yang diminta
-      if (hasil.length === 0 && (budgetMin !== null || budgetMax !== null)) {
-        console.log("[RAG Price Compare] Fallback Upselling triggered. Removing budget constraints.");
-        const fallbackFilters = `${modelFilter}${excludeFilter}${hybridClause}${seaterClause}${keywordClause}`;
-        hasil = await runPriceQuery(fallbackFilters, []);
+      const hasRequestedFeature = selfQuery.exact_keywords.length === 0 || hasFeatureMatch(hasil, selfQuery.exact_keywords);
+
+      // Fallback: Jika tidak ada unit ber-fitur tersebut di bawah budget, jalankan query tanpa filter fitur
+      if ((hasil.length === 0 || !hasRequestedFeature) && selfQuery.exact_keywords.length > 0) {
+        console.log("[RAG Price Compare] 0 results with feature filter, falling back to price query without feature filter.");
+        const fallbackHasil = await runPriceQuery(additionalFilters, budgetParams);
+        if (fallbackHasil.length > 0) {
+          hasil = fallbackHasil;
+          if (!hasRequestedFeature) isFallbackFeature = true;
+        }
       }
 
       console.log("[RAG DATABASE RESULTS COUNT]", hasil.length);
@@ -553,6 +775,15 @@ async function cariKonteksHybrid(
           specText = JSON.stringify(row.spesifikasi_detail);
         }
         konteks += `  DETAIL FITUR: ${specText}\n`;
+      }
+
+      if (isFallbackFeature && selfQuery.exact_keywords.length > 0) {
+        const budgetText = budgetMax ? `di bawah Rp ${new Intl.NumberFormat("id-ID").format(budgetMax)}` : `di atas Rp ${new Intl.NumberFormat("id-ID").format(budgetMin!)}`;
+        konteks += `\n[CATATAN PENTING UNTUK AI SALES EXECUTIVE: Kustomer mencari mobil dengan fitur "${selfQuery.exact_keywords.join(", ")}" untuk budget ${budgetText}. Namun, di database resmi Auto2000 Rantauprapat, TIDAK ADA unit mobil Toyota di rentang harga tersebut yang memiliki fitur "${selfQuery.exact_keywords.join(", ")}". Unit yang disajikan di atas adalah opsi mobil Toyota yang MEMILIKI fitur "${selfQuery.exact_keywords.join(", ")}" dengan rentang harga terdekat. WAJIB JELASKAN HAL INI SECARA JUJUR, RAMAH, DAN SOPAN bahwa untuk mendapatkan fitur tersebut, budget perlu disesuaikan dengan unit di atas.]\n`;
+      }
+
+      if (!konteks.trim()) {
+        return "[HASIL PENCARIAN DATABASE KOSONG / 0 UNIT DITEMUKAN. Tidak ada unit Toyota di database resmi Auto2000 Rantauprapat yang memenuhi kriteria pencarian ini.]";
       }
       return konteks;
     } catch (error) {
@@ -587,8 +818,6 @@ async function cariKonteksHybrid(
 
     // Jika mencari model spesifik ATAU user meminta listing, bebaskan filter rn agar seluruh varian bisa diambil.
     const filterRn = (isSpecificModel || queryListing) ? "" : "WHERE rn = 1";
-    const limitQuery = (isSpecificModel || queryListing) ? (isSpecificModel ? "LIMIT 30" : "LIMIT 15") : "LIMIT 7";
-
     const orderClause = queryIrit
       ? "bbm_kota DESC, jarak ASC"
       : "jarak ASC"; // Biarkan vector search bekerja sepenuhnya
@@ -604,7 +833,9 @@ async function cariKonteksHybrid(
       useVectorForRn = true;
     }
 
-    const sql = `
+    // --- PATH 1: Dense Vector Retrieval ---
+    const vectorLimit = (isSpecificModel || queryListing) ? (isSpecificModel ? "LIMIT 30" : "LIMIT 15") : "LIMIT 15";
+    const vectorSql = `
       SELECT tipe_mobil, varian, harga, spesifikasi_detail, jarak, bbm_kota, bbm_tol FROM (
         SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol,
                vec_cosine_distance(embedding, ?) AS jarak,
@@ -614,29 +845,101 @@ async function cariKonteksHybrid(
       ) ranked
       ${filterRn}
       ORDER BY ${orderClause}
-      ${limitQuery}
+      ${vectorLimit}
     `;
 
-    const params: any[] = [vektorStr];
+    const vectorParams: any[] = [vektorStr];
     if (useVectorForRn) {
-      params.push(vektorStr);
+      vectorParams.push(vektorStr);
     }
-    params.push(...budgetParams);
+    vectorParams.push(...budgetParams);
 
-    const [rows] = await koneksi.execute(sql, params);
-    hasil = rows as any[];
+    // --- PATH 2: Sparse Lexical / Keyword Retrieval ---
+    let keywordCandidates: any[] = [];
+    const searchTerms = selfQuery.exact_keywords.length > 0 ? selfQuery.exact_keywords : [expandedQuery];
+    const featureKeywordClause = buildFeatureSqlCondition(searchTerms);
 
-    // Fallback: jika hasil 0 dan ada budget filter, cari mobil terdekat tanpa batasan harga
-    if (hasil.length === 0 && (budgetMin !== null || budgetMax !== null)) {
-      console.log("[RAG Fallback] 0 results with budget filter. Removing budget constraints and finding closest price matches.");
+    if (featureKeywordClause) {
+      const keywordSql = `
+        SELECT tipe_mobil, varian, harga, spesifikasi_detail, 999 as jarak, bbm_kota, bbm_tol
+        FROM data_mobil_hybrid
+        WHERE 1=1 ${additionalFilters} ${featureKeywordClause}
+        LIMIT 15
+      `;
+      try {
+        const [kwRows] = await koneksi.execute(keywordSql, budgetParams);
+        keywordCandidates = kwRows as any[];
+        console.log(`[RAG Dual-Retrieval] Path 2 (Lexical Keyword Search) fetched ${keywordCandidates.length} candidate rows.`);
+      } catch (kwErr) {
+        console.error("[RAG Dual-Retrieval] Path 2 Lexical Search error (continuing with Vector only):", kwErr);
+      }
+    }
+
+    const [vectorRows] = await koneksi.execute(vectorSql, vectorParams);
+    const vectorCandidates = vectorRows as any[];
+    console.log(`[RAG Dual-Retrieval] Path 1 (Dense Vector Search) fetched ${vectorCandidates.length} candidate rows.`);
+
+    // --- UNION & DEDUPLICATION (Candidate Pool) ---
+    const candidateMap = new Map<string, any>();
+    for (const row of vectorCandidates) {
+      const key = `${row.tipe_mobil?.toLowerCase()}_${row.varian?.toLowerCase()}`;
+      candidateMap.set(key, row);
+    }
+    for (const row of keywordCandidates) {
+      const key = `${row.tipe_mobil?.toLowerCase()}_${row.varian?.toLowerCase()}`;
+      if (!candidateMap.has(key)) {
+        candidateMap.set(key, row);
+      }
+    }
+
+    let combinedCandidates = Array.from(candidateMap.values());
+    console.log(`[RAG Dual-Retrieval] Combined Candidate Pool: ${combinedCandidates.length} unique items.`);
+
+    // --- HYBRID RE-RANKING via BM25 + Vector RRF ---
+    if (combinedCandidates.length > 0) {
+      const fullSearchQuery = `${originalMessage} ${expandedQuery} ${(selfQuery.exact_keywords || []).join(" ")}`;
+      combinedCandidates = combineRRF(combinedCandidates, fullSearchQuery);
+      console.log(`[RAG Hybrid RRF] Re-ranked ${combinedCandidates.length} candidates using BM25 + Vector RRF.`);
+
+      // Jika kustomer meminta pengurutan harga pada pencarian ber-fitur (misal: "mobil kamera 360 termurah")
+      if (queryHarga === "termurah") {
+        combinedCandidates.sort((a, b) => parseFloat(a.harga) - parseFloat(b.harga));
+        console.log(`[RAG Hybrid Sort] Sorted feature candidate pool by price ASC (termurah).`);
+      } else if (queryHarga === "termahal") {
+        combinedCandidates.sort((a, b) => parseFloat(b.harga) - parseFloat(a.harga));
+        console.log(`[RAG Hybrid Sort] Sorted feature candidate pool by price DESC (termahal).`);
+      }
+    }
+
+    const finalLimit = (isSpecificModel || queryListing) ? 15 : 7;
+    hasil = combinedCandidates.slice(0, finalLimit);
+
+    const hasRequestedFeature = selfQuery.exact_keywords.length === 0 || hasFeatureMatch(hasil, selfQuery.exact_keywords);
+
+    // Fallback: jika hasil 0 ATAU mobil yang disaring di bawah budget tidak memiliki fitur spesifik (exact_keywords)
+    if ((hasil.length === 0 || !hasRequestedFeature) && (budgetMin !== null || budgetMax !== null)) {
+      console.log(`[RAG Fallback] ${hasil.length === 0 ? "0 results" : "Feature requested but not found"} with budget filter. Removing budget constraints and finding closest matches.`);
       const fallbackPrice = budgetMax ?? budgetMin!;
+      const featureClause = buildFeatureSqlCondition(selfQuery.exact_keywords);
+
       const fallbackSql = `SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol, 0 as jarak 
          FROM data_mobil_hybrid 
-         WHERE 1=1 ${modelFilter}${excludeFilter}${hybridClause}${seaterClause}${keywordClause}
-         ORDER BY ABS(harga - ?) ASC LIMIT 5`;
+         WHERE 1=1 ${modelFilter}${excludeFilter}${hybridClause}${seaterClause}${featureClause}
+         ORDER BY ABS(harga - ?) ASC LIMIT 7`;
       const [fallbackRows] = await koneksi.execute(fallbackSql, [fallbackPrice]);
-      hasil = fallbackRows as any[];
-      console.log(`[RAG Fallback] Found ${hasil.length} results after removing budget constraints.`);
+      if ((fallbackRows as any[]).length > 0) {
+        hasil = fallbackRows as any[];
+        if (!hasRequestedFeature) isFallbackFeature = true;
+        console.log(`[RAG Fallback] Found ${hasil.length} feature-matching results after removing budget constraints.`);
+      } else if (hasil.length === 0) {
+        const fallbackSqlNoFeature = `SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol, 0 as jarak 
+           FROM data_mobil_hybrid 
+           WHERE 1=1 ${modelFilter}${excludeFilter}${hybridClause}${seaterClause}
+           ORDER BY ABS(harga - ?) ASC LIMIT 5`;
+        const [fallbackRowsNoFeature] = await koneksi.execute(fallbackSqlNoFeature, [fallbackPrice]);
+        hasil = fallbackRowsNoFeature as any[];
+        console.log(`[RAG Fallback] Found ${hasil.length} closest price results without feature filter.`);
+      }
     }
 
     // Build context string
@@ -660,8 +963,16 @@ async function cariKonteksHybrid(
       }
     }
 
+    if (isFallbackFeature && selfQuery.exact_keywords.length > 0) {
+      const budgetText = budgetMax ? `di bawah Rp ${new Intl.NumberFormat("id-ID").format(budgetMax)}` : `di atas Rp ${new Intl.NumberFormat("id-ID").format(budgetMin!)}`;
+      konteks += `\n[CATATAN PENTING UNTUK AI SALES EXECUTIVE: Kustomer mencari mobil dengan fitur "${selfQuery.exact_keywords.join(", ")}" untuk budget ${budgetText}. Namun, di database resmi Auto2000 Rantauprapat, TIDAK ADA unit mobil Toyota di rentang harga tersebut yang memiliki fitur "${selfQuery.exact_keywords.join(", ")}". Unit yang disajikan di atas adalah opsi mobil Toyota yang MEMILIKI fitur "${selfQuery.exact_keywords.join(", ")}" dengan rentang harga terdekat. WAJIB JELASKAN HAL INI SECARA JUJUR, RAMAH, DAN SOPAN bahwa untuk mendapatkan fitur tersebut, budget perlu disesuaikan dengan unit di atas.]\n`;
+    }
+
     console.log("[RAG DATABASE RESULTS COUNT]", hasil.length);
     console.log("[RAG DATABASE RESULTS]", hasil.map(h => `${h.tipe_mobil} ${h.varian}`));
+    if (!konteks.trim()) {
+      return "[HASIL PENCARIAN DATABASE KOSONG / 0 UNIT DITEMUKAN. Tidak ada unit Toyota di database resmi Auto2000 Rantauprapat yang memenuhi kriteria pencarian ini.]";
+    }
     return konteks;
   } catch (error) {
     console.error("Database error:", error);
@@ -686,64 +997,63 @@ async function tanyaGemini(
   const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
 
   const systemPrompt = `
-    Anda adalah Sales Executive profesional, ramah, dan solutif dari Auto2000 Rantauprapat. 
-    Tugas Anda adalah melayani kustomer yang bertanya mengenai lini mobil terbaru Toyota.
+    Anda adalah Sales Executive profesional dan ramah dari Auto2000 Rantauprapat.
+    Tugas Anda adalah melayani pertanyaan kustomer mengenai lini mobil terbaru Toyota.
 
-    INFORMASI PENTING UNTUK ANDA:
-    1. Semua mobil dalam database adalah unit terbaru Toyota.
-    2. Harga yang tertera merupakan harga On The Road (OTR) untuk wilayah Labuhanbatu, kecuali yang "segmentation" nya bertuliskan "Estimasi OTR Jakarta".
-    3. Sumber data utama Anda adalah <data_database> di bawah ini.
-
+    SUMBER DATA UTAMA:
     <data_database>
     ${konteksDb}
     </data_database>
-    
-    PEDOMAN GAYA BAHASA & LOGIKA JAWABAN:
-    1. PERSONA SALES: Gunakan bahasa yang sopan, hangat (misal menyapa dengan 'Bapak/Ibu'), dan profesional. Jelaskan fitur secara menyeluruh namun sederhana agar kustomer tidak bingung.
-    2. VALIDASI DATA & PENGETAHUAN UMUM TEKNOLOGI: Jawab kustomer berdasarkan data yang ada di <data_database>. Anda DILARANG KERAS memberikan informasi harga, varian, atau spesifikasi teknis dari mobil apapun (termasuk unit Toyota seperti Rush, Avanza, dll) jika data mobil tersebut tidak ada/kosong di dalam <data_database> yang Anda terima. Jika data unit tersebut tidak ada di <data_database>, katakan dengan jujur bahwa data harga dan unit tersebut belum tersedia di database resmi kami saat ini, alih-alih menebak harganya dari memori Anda. Namun, jika kustomer menanyakan nama teknologi otomotif atau istilah teknis yang penjelasannya tidak ada/minim di database, Anda diperbolehkan menggunakan pengetahuan umum Anda untuk menjelaskan cara kerja teknologi tersebut terlebih dahulu. Setelah itu, Anda wajib mereferensikan mobil di <data_database> yang memiliki sistem tersebut.
-    3. LOGIKA REKOMENDASI (CROSS-SELLING): Jika kustomer mencari mobil tertentu yang TIDAK ADA di database, jangan langsung menolak. Lihat kriteria mereka (misal: mencari mobil keluarga, atau mobil irit). Cari mobil lain di <data_database> yang memiliki kemiripan kriteria, lalu berikan rekomendasi dengan kalimat: "Mohon maaf, unit [Mobil A] belum tersedia di data kami, namun berdasarkan keinginan Bapak/Ibu yang mencari mobil [Kriteria], saya sangat merekomendasikan [Mobil B] karena..."
-    4. HARGA: Selalu informasikan bahwa harga tersebut adalah harga OTR Labuhanbatu untuk membantu kustomer menghitung budget mereka.
-    5. STRUKTUR: Gunakan bullet points atau penomoran agar penjelasan fitur mudah dipahami.
-    6. LOGIKA KEIRITAN (SANGAT PENTING - GROUND TRUTH): 
-       a) Gunakan field "KONSUMSI BBM (DALAM KOTA)" dan "KONSUMSI BBM (LUAR KOTA/TOL)" di atas sebagai acuan utama Anda.
-       b) Bandingkan angka tersebut secara matematis. Semakin tinggi angkanya, semakin irit mobil tersebut.
-       c) Prioritaskan mobil dengan angka tertinggi saat kustomer bertanya tentang "paling irit" atau "hemat bbm".
-       d) Abaikan bahasa marketing jika bertentangan dengan angka bbm yang tertera.
-    7. PERINGATAN HARGA: Jika kustomer mencari harga yang JAUH di bawah unit termurah yang tersedia (misal cari 100jt tapi unit termurah 170jt), sampaikan dengan jujur bahwa unit di range 100jt pas belum tersedia, namun tawarkan unit terdekat (seperti Calya) sambil menyebutkan selisih harganya agar kustomer tidak kaget.
-    8. RENTANG HARGA & VARIAN (SANGAT PENTING): Jika kustomer bertanya secara umum tentang suatu model mobil (contoh: "Berapa harga Avanza?", "Tanya Innova Zenix dong"), Anda WAJIB memberikan informasi rentang harga berdasarkan <data_database>. Sebutkan tipe terendah/termurahnya beserta harganya, dan tipe tertinggi/termahalnya beserta harganya. (Misal: "Harga Toyota Avanza OTR Labuhanbatu dibanderol mulai dari Rp X untuk tipe [Tipe A], hingga tipe tertingginya yaitu [Tipe B] di kisaran Rp Y").
-    9. PERBANDINGAN HARGA: Jika kustomer mencari mobil 'termurah' atau 'termahal', Anda WAJIB membandingkan harga semua unit yang ada di <data_database> secara matematis sebelum memberikan jawaban agar tidak salah merekomendasikan.
-    10. FORMAT OUTPUT: Gunakan format Markdown (seperti **teks tebal** untuk nama mobil dan harga) agar tampilan di website terlihat rapi dan profesional.
-    11. BATASAN TOPIK (OUT-OF-SCOPE): Jika kustomer bertanya tentang merek selain Toyota (misal: Honda, Mitsubishi, dll) atau membandingkan mobil Toyota dengan kompetitor, Anda wajib:
-        a) Tolak perbandingan tersebut dengan sopan, nyatakan bahwa Anda hanya melayani informasi resmi untuk unit Toyota Auto2000 Rantauprapat.
-        b) DILARANG KERAS memberikan estimasi harga, spesifikasi, atau varian untuk mobil Toyota maupun kompetitor (karena data database kosong/RAG di-bypass). JANGAN menyebutkan nominal harga tebakan dari memori Anda.
-        c) JANGAN PERNAH mengatakan "data Toyota Rush tidak ada di database kami" atau kalimat serupa yang mengesankan database Anda tidak lengkap. Cukup sebutkan alternatif nama model SUV/MPV Toyota yang sekelas (misal: Toyota Rush, Raize, Veloz) dan undang kustomer untuk menanyakan model Toyota tersebut secara spesifik agar Anda dapat membantu mencarikan data OTR resminya.
-    12. PENAMAAN VARIAN HILUX RANGGA: Varian Toyota Hilux Rangga memiliki kode khusus: 
-        - "CAB-CHS" (Cab & Chassis) berarti mobil sasis kosong tanpa bak belakang, sangat cocok untuk kustomer UMKM yang ingin mengkustomisasi/membuat bak belakangnya menjadi macam-macam bentuk karoseri (boks, dll). 
-        - "PU" pada CAB-CHS berarti sasis untuk modifikasi angkutan barang, sedangkan "MB" (Microbus / Motorized Business / Mobile Business) untuk modifikasi angkutan penumpang atau model komersial bergerak, seperti toko keliling, ambulans, atau mobil boks.
-        - CAB (Kabin): Bagian depan mobil yang berisi ruang kemudi untuk sopir dan penumpang.
-        - CHASSIS (Sasis): Rangka utama mobil beserta roda dan mesin yang menjadi pondasi kendaraan.
-        - Istilah CAB-CHASSIS MB 2.0 STD merujuk pada jenis mobil komersial yang dijual dalam bentuk sasis tanpa bak belakang yang siap dipasang berbagai jenis bodi oleh perusahaan karoseri.
-        - "PICK UP" (tanpa CAB-CHS) berarti mobil sudah utuh lengkap dengan bak belakang bawaan pabrik. 
-        - "DSL" berarti mesin Diesel, varian angka (seperti 2.0) tanpa DSL berarti Bensin. 
-        Gunakan panduan ini untuk merekomendasikan tipe yang paling tepat (terutama tipe CAB-CHS).
-    13. PROMO & KREDIT: DILARANG menawarkan program kredit, DP, atau diskon KECUALI pengguna secara spesifik menanyakannya.
-    14. LAYANAN PURNAJUAL (AFTERSALES): Asisten digital ini HANYA melayani informasi penjualan unit mobil baru. Jika kustomer bertanya tentang biaya servis berkala, ganti oli, suku cadang, atau layanan bengkel lainnya, tolak dengan sopan. Jelaskan bahwa Anda tidak memiliki akses ke pangkalan data biaya mekanik/bengkel dan arahkan kustomer untuk berinteraksi langsung dengan Service Advisor di bengkel resmi Auto2000 Rantauprapat.
-    15. FITUR PANORAMIC: Hati-hati dengan kata "Panoramic". Jika kustomer secara spesifik mencari mobil dengan "Panoramic Sunroof", "Sunroof", atau "Moonroof" (atap kaca), Anda DILARANG KERAS merekomendasikan mobil yang hanya memiliki "Panoramic View Monitor" atau PVM (fitur kamera 360 derajat). Pastikan mobil yang Anda rekomendasikan benar-benar tertulis memiliki fitur sunroof/moonroof/panoramic roof di bagian spesifikasinya.
-    16. GARANSI & T-CARE: 
-        - Garansi General (Semua Mobil): Meliputi kerusakan akibat cacat produksi pada mesin, transmisi, kelistrikan bodi, dan cat selama 3 tahun atau 100.000 km.
-        - Program T-Care: Gratis Biaya Jasa Servis & Suku Cadang sampai servis berkala ke-7 (maksimal 3 tahun / 60.000 km) dan bonus perpanjangan garansi (Extended Warranty) 1 tahun / 20.000 km (total 4 tahun/120.000 km) jika rutin servis setiap 6 bulan di bengkel resmi.
-        - Mobil Hybrid & EV (Double Protection): Mendapat Garansi General ditambah Garansi Khusus Baterai & Sistem Elektrifikasi (meliputi Hybrid Battery Pack, Inverter, Battery Control Module, Main Battery Pack, thermal management) selama 8 tahun atau 160.000 km. Semua garansi ini sudah include otomatis tanpa biaya tambahan.
-    17. ATURAN FITUR KESELAMATAN (TSS): Anda DILARANG KERAS menyebutkan bahwa suatu mobil dilengkapi dengan "Toyota Safety Sense" atau "TSS" kecuali kata "TSS" atau "Toyota Safety Sense" SECARA EKSPLISIT tertulis pada spesifikasi mobil tersebut di dalam <data_database>. Meskipun mobil tersebut memiliki satu atau beberapa fitur yang umumnya tergabung dalam paket TSS (seperti Pre-Collision Warning, Lane Departure Warning, Blind Spot Monitoring, dll), JANGAN menyimpulkan sendiri bahwa mobil tersebut memiliki TSS. Cukup sebutkan fitur-fiturnya secara individual persis seperti yang tertulis di database.
+
+    PEDOMAN JAWABAN & ATURAN UTAMA:
+    1. STRICT GROUND TRUTH (ANTI-HALUSINASI):
+       - Jawab HANYA berdasarkan data di <data_database>. Semua harga adalah OTR Labuhanbatu.
+       - DILARANG KERAS menebak/membuat-buat harga, varian, atau spesifikasi dari memori Anda jika data tidak ada di <data_database>.
+       - Jika unit tidak ditemukan / database kosong, katakan dengan jujur bahwa unit belum tersedia di database resmi kami saat ini, lalu rekomendasikan alternatif model Toyota sekelas yang tersedia.
+    2. LOGIKA REKOMENDASI & FITUR SPESIFIK:
+       - Jika kustomer mencari fitur spesifik (misal: sunroof, panoramic roof, moonroof, TSS, captain seat, atau mobil irit): TAMPILKAN LANGSUNG varian di <data_database> yang MEMILIKI fitur tersebut beserta harganya sebagai rekomendasi utama. Dilarang menampilkan harga varian terendah yang tidak memiliki fitur tersebut.
+       - PERHATIKAN PEMISAHAN SPESIFIKASI ATAP KACA: Sunroof (kaca yang dapat dibuka/tilt), Moonroof (kaca yang dapat digeser), dan Panoramic Roof / Panoramic Glass Roof (atap kaca lebar panoramic) adalah fitur yang BERBEDA secara fungsi dan spesifikasi. Sebutkan tipe atap kaca persis sesuai data di <data_database> dan DILARANG menyebut panoramic/moonroof sebagai sunroof jika tidak tercantum sebagai sunroof di database.
+       - Untuk keiritan BBM, gunakan acuan angka km/l di database (semakin tinggi angka km/l = semakin irit).
+       - Untuk kustomer yang bertanya umum tentang suatu model (misal: "Berapa harga Avanza?"), sebutkan rentang harga dari varian terendah hingga varian tertinggi di database.
+    3. BATASAN LAYANAN (OUT-OF-SCOPE):
+       - Hanya melayani penjualan unit baru Toyota. Tolak perbandingan dengan merek lain secara sopan.
+       - Dilarang menawarkan program kredit, DP, atau informasi servis bengkel KECUALI ditanyakan spesifik oleh kustomer.
+    4. FORMAT & PERSONA:
+       - Gunakan bahasa yang sopan dan hangat (sapa dengan 'Bapak/Ibu').
+       - Gunakan format Markdown rapi (**teks tebal** untuk nama mobil & harga) dan poin-poin agar mudah dibaca.
   `;
 
-  // Murni stateless (tanpa ingatan chatHistory) untuk menghemat limit token secara maksimal.
-  // Tiap pesan akan dianggap sebagai percakapan baru.
-  const contents = [
-    {
+  // Kirim riwayat percakapan terbaru (maks 6 pesan) agar Gemini memahami konteks follow-up.
+  // Ini penting agar pertanyaan lanjutan seperti "yang lebih murah dari itu?" bisa dipahami.
+  const contents: { role: "user" | "model"; parts: { text: string }[] }[] = [];
+
+  if (chatHistory && chatHistory.length > 0) {
+    const recentHistory = chatHistory.slice(-6);
+    for (const msg of recentHistory) {
+      // Gemini API menggunakan "model" bukan "assistant"
+      const geminiRole = msg.role === "assistant" ? "model" : "user";
+      contents.push({
+        role: geminiRole,
+        parts: [{ text: msg.content }],
+      });
+    }
+
+    // Gemini API mensyaratkan pesan pertama harus role "user".
+    // Hapus pesan-pesan "model" di awal jika ada (misal welcome message).
+    while (contents.length > 0 && contents[0].role === "model") {
+      contents.shift();
+    }
+  }
+
+  // Pastikan pesan terakhir adalah pesan user saat ini
+  // Jika chatHistory sudah mengandung pesan user terakhir, tidak perlu duplikasi
+  const lastContent = contents[contents.length - 1];
+  if (!lastContent || lastContent.role !== "user" || lastContent.parts[0].text !== pertanyaan) {
+    contents.push({
       role: "user",
       parts: [{ text: pertanyaan }],
-    }
-  ];
+    });
+  }
 
   const maxRetry = 5;
   for (let attempt = 0; attempt < maxRetry; attempt++) {

@@ -25,11 +25,11 @@ function Hero() {
       <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-8 text-xs text-muted-foreground/80 font-medium">
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-          <span>Real-time Database TiDB</span>
+          <span>Database Resmi Auto2000</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
-          <span>Analisis Kriteria RAG</span>
+          <span>Analisis Kriteria Cerdas</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
