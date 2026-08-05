@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Database — Toyota Auto2000 Rantauprapat</title>
+    <meta name="description" content="Panel admin untuk mengelola data mobil Toyota di TiDB">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- LOADING OVERLAY -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loadingText">Memproses...</div>
+    </div>
+
+    <!-- TOAST CONTAINER -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- MODAL -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modalContent"></div>
+    </div>
+
+    <!-- APP LAYOUT -->
+    <div class="app-layout">
+        <!-- SIDEBAR OVERLAY -->
+        <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleMobileMenu()"></div>
+
+        <!-- SIDEBAR -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-brand">
+                <div class="sidebar-brand-icon">🔧</div>
+                <div class="sidebar-brand-text">
+                    <h2>Admin Database</h2>
+                    <p>Auto2000 Rantauprapat</p>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <div class="nav-section-title">Menu Utama</div>
+                <a class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
+                    <span class="nav-icon">📊</span> Dashboard
+                </a>
+                <a class="nav-item" data-page="data" onclick="navigateTo('data')">
+                    <span class="nav-icon">🗃️</span> Data Mobil
+                </a>
+
+                <div class="nav-section-title">Kelola Data</div>
+                <a class="nav-item" data-page="tambah" onclick="navigateTo('tambah')">
+                    <span class="nav-icon">➕</span> Tambah Data
+                </a>
+                <a class="nav-item" data-page="import" onclick="navigateTo('import')">
+                    <span class="nav-icon">📥</span> Import JSON
+                </a>
+                <a class="nav-item" data-page="ekstrak" onclick="navigateTo('ekstrak')">
+                    <span class="nav-icon">📁</span> Ekstrak Brosur AI
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 10px; padding: 0 4px;">
+                    Login sebagai: <strong style="color: var(--text-secondary);" id="adminUsername">admin</strong>
+                </div>
+                <button class="btn-logout" onclick="logout()">
+                    🚪 Logout
+                </button>
+            </div>
+        </aside>
+
+        <!-- MAIN CONTENT -->
+        <main class="main-content">
+            <!-- MOBILE HEADER -->
+            <header class="mobile-header">
+                <div class="mobile-brand">Admin Auto2000</div>
+                <button class="btn-mobile-menu" onclick="toggleMobileMenu()">☰</button>
+            </header>
+
+            <!-- PAGE HEADER -->
+            <header class="page-header">
+                <h1 id="pageTitle">Dashboard</h1>
+                <p id="pageDesc">Ringkasan statistik database mobil Toyota</p>
+            </header>
+
+            <div class="page-body">
+                <!-- ==================== DASHBOARD ==================== -->
+                <section class="page-section active" id="page-dashboard">
+                    <div class="stats-grid" id="statsGrid">
+                        <div class="stat-card">
+                            <div class="stat-icon">🚗</div>
+                            <div class="stat-value" id="statTotal">—</div>
+                            <div class="stat-label">Total Data Mobil</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📋</div>
+                            <div class="stat-value" id="statTipe">—</div>
+                            <div class="stat-label">Tipe Mobil Unik</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🕐</div>
+                            <div class="stat-value" style="font-size: 18px;" id="statTime">—</div>
+                            <div class="stat-label">Terakhir Diakses</div>
+                        </div>
+                    </div>
+
+                    <div class="form-card">
+                        <div class="form-card-title">📈 Top Model (Berdasarkan Jumlah Varian)</div>
+                        <div class="form-card-desc">5 tipe mobil dengan varian terbanyak di database</div>
+                        <div id="topModelsContainer">
+                            <div class="empty-state">
+                                <div class="loading-spinner" style="margin: 0 auto 16px;"></div>
+                                <p>Memuat data...</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== DATA TABLE ==================== -->
+                <section class="page-section" id="page-data">
+                    <div style="margin-bottom: 16px;">
+                        <button class="btn-back" onclick="navigateTo('dashboard')">⬅ Kembali ke Dashboard</button>
+                    </div>
+                    <div class="table-toolbar">
+                        <div class="search-box">
+                            <span class="search-icon">🔍</span>
+                            <input type="text" id="searchInput" placeholder="Cari berdasarkan ID, tipe mobil, atau varian..." oninput="debounceSearch()">
+                        </div>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" onclick="loadData()">🔄 Refresh</button>
+                            <button class="btn btn-secondary" onclick="exportData()" title="Export semua data ke file JSON">📤 Export</button>
+                            <button class="btn btn-primary" onclick="navigateTo('tambah')">➕ Tambah Data</button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Tipe Mobil</th>
+                                    <th>Varian</th>
+                                    <th>Harga (Rp)</th>
+                                    <th>BBM Kota</th>
+                                    <th>BBM Tol</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataTableBody">
+                                <tr>
+                                    <td colspan="7">
+                                        <div class="empty-state">
+                                            <div class="loading-spinner" style="margin: 0 auto 16px;"></div>
+                                            <p>Memuat data...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        <div class="pagination" id="paginationContainer">
+                            <div class="pagination-info" id="paginationInfo">—</div>
+                            <div class="pagination-controls" id="paginationControls"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== TAMBAH DATA ==================== -->
+                <section class="page-section" id="page-tambah">
+                    <div style="margin-bottom: 16px;">
+                        <button class="btn-back" onclick="navigateTo('dashboard')">⬅ Kembali ke Dashboard</button>
+                    </div>
+                    <!-- SAMPLE DATA CARD -->
+                    <div class="sample-card" id="sampleCard">
+                        <div class="sample-header" onclick="toggleSample()">
+                            <h3>📖 Contoh Penulisan Data (Klik untuk melihat)</h3>
+                            <span class="chevron">▼</span>
+                        </div>
+                        <div class="sample-body">
+                            <div class="sample-body-inner">
+                                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                                    Berikut contoh satu data mobil lengkap yang bisa dijadikan acuan format pengisian. 
+                                    <button class="btn btn-success" style="padding: 4px 12px; font-size: 11px; margin-left: 8px;" onclick="fillSampleData()">⚡ Isi Form dengan Contoh Ini</button>
+                                </p>
+                                <pre class="sample-json">{
+    <span class="key">"tipe_mobil"</span>: <span class="string">"Toyota New Alphard"</span>,
+    <span class="key">"varian"</span>: <span class="string">"2.5 XE (Gasoline)"</span>,
+    <span class="key">"harga"</span>: <span class="string">"1.355.000.000"</span>,
+    <span class="key">"est_bbm_kota"</span>: <span class="string">"7 km/l"</span>,
+    <span class="key">"est_bbm_tol"</span>: <span class="string">"10 km/l"</span>,
+    <span class="key">"spesifikasi"</span>: {
+        <span class="key">"segmentation"</span>: <span class="string">"MPV Premium / Luxury Minivan"</span>,
+
+        <span class="key">"performance_specs"</span>: <span class="string">"Ditenagai mesin bensin 2AR FE berkapasitas 2.5L. Menghasilkan tenaga maksimal 134 KW (182 PS) dan torsi 235 Nm (23.9 kgm). Menggunakan transmisi CVT dengan mode Sequential [M Mode]."</span>,
+
+        <span class="key">"fuel_system_capacity_efficiency_estimates"</span>: <span class="string">"Berbahan bakar bensin. Kapasitas tangki 75 liter dan estimasi konsumsi bahan bakar dalam kota yang padat, konsumsi ini biasanya turun menjadi sekitar 7 hingga 9 km per liter, sedangkan untuk perjalanan luar kota atau tol dapat mencapai sekitar 10 hingga 12 km per liter."</span>,
+
+        <span class="key">"dimensions"</span>: <span class="string">"Panjang 5.010 mm, lebar 1.850 mm, tinggi 1.945 mm, dan jarak sumbu roda 3.000 mm. Kapasitas penumpang adalah 7 orang (2 di depan, 2 Captain Seat di baris kedua, dan 3 penumpang di baris ketiga)."</span>,
+
+        <span class="key">"colour_option"</span>: <span class="string">"Black, Platinum White Pearl."</span>,
+
+        <span class="key">"chassis_drivetrain"</span>: <span class="string">"Sistem kemudi Power Tilt &amp; Telescopic. Suspensi depan FR Strut dan suspensi belakang Double Wishbone (DWB). Menggunakan velg Alloy 17 inci dengan ban 225/65 R17."</span>,
+
+        <span class="key">"exterior"</span>: <span class="string">"Dilengkapi Luxury Front Grille, Sharp LED Headlamp (LED 3 Lamps, Adaptive High beam System, Cornering Lamp, Sequential Turn Lamp, dan DRL), Elegant Rear Combination Lamp, serta Comfortable Power Slide Door."</span>,
+
+        <span class="key">"interior_comfort"</span>: <span class="string">"Material jok berbahan Synthetic Leather. Baris kedua menggunakan Captain Seat berpengaturan elektrik (Power) dengan Headrest besar. Baris ketiga berupa 5:5 Split Space up Bench. Sistem tata udara Dual A/C dengan Nanoe X untuk area depan (FR). Terdapat Rear Side Shade dan Front Seat Storage."</span>,
+
+        <span class="key">"technology"</span>: <span class="string">"Panel instrumen pengemudi 12.3 inci Full TFT Digital Meter. Head Unit 14 inci yang dipadukan 15 speaker JBL, Rear Seat Entertainment 14 inci, tombol kemudi Audio+Voice+ACC+LTA, dan Wireless Charger."</span>,
+
+        <span class="key">"safety_specs"</span>: <span class="string">"Toyota Safety Sense 3.0 (Pre Collision System, Full Speed ACC, Lane Tracing Assist, Adaptive High Beam, Dynamic Radar Cruise Control, Lane Departure Alert). Dilengkapi Panoramic View Monitor (PVM), Blind Spot Monitor (BSM), Parking Brake Support (mendeteksi Object+Vehicle+Pedestrian), Safe Exit Assist (SEA), dan Airbags (Front D+P, Side, CSA)."</span>
+    }
+}</pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ADD FORM -->
+                    <form id="addForm" onsubmit="submitAddForm(event)">
+                        <!-- INFO DASAR -->
+                        <div class="form-card">
+                            <div class="form-card-title">🚗 Informasi Dasar</div>
+                            <div class="form-card-desc">Isi identitas utama dan harga mobil</div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Tipe Mobil <span class="required">*</span></label>
+                                    <input type="text" id="add_tipe_mobil" placeholder="Contoh: Toyota New Alphard" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Varian <span class="required">*</span></label>
+                                    <input type="text" id="add_varian" placeholder="Contoh: 2.5 XE (Gasoline)" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Harga (OTR) <span class="required">*</span></label>
+                                    <input type="text" id="add_harga" placeholder="Contoh: 1.355.000.000" required>
+                                    <div class="form-hint">Gunakan format titik sebagai pemisah ribuan</div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Estimasi BBM Kota <span class="required">*</span></label>
+                                    <input type="text" id="add_bbm_kota" placeholder="Contoh: 7 km/l" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Estimasi BBM Tol <span class="required">*</span></label>
+                                    <input type="text" id="add_bbm_tol" placeholder="Contoh: 10 km/l" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SPESIFIKASI -->
+                        <div class="form-card">
+                            <div class="form-card-title">📋 Spesifikasi Detail</div>
+                            <div class="form-card-desc">Isi seluruh detail spesifikasi mobil. Semua field wajib diisi.</div>
+
+                            <div class="spek-section open" id="spekSection">
+                                <div class="spek-header" onclick="toggleSpek()">
+                                    <h3>⚙️ 10 Field Spesifikasi</h3>
+                                    <span class="chevron">▼</span>
+                                </div>
+                                <div class="spek-body">
+                                    <div class="spek-body-inner">
+                                        <div class="form-group">
+                                            <label>Segmentation <span class="required">*</span></label>
+                                            <textarea id="add_segmentation" rows="2" placeholder="Contoh: MPV Premium / Luxury Minivan" required></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Performance Specs <span class="required">*</span></label>
+                                            <textarea id="add_performance_specs" rows="3" placeholder="Jelaskan mesin, tenaga, torsi, dan transmisi..." required></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Fuel System, Capacity & Efficiency Estimates <span class="required">*</span></label>
+                                            <textarea id="add_fuel_system" rows="3" placeholder="Jelaskan sistem bahan bakar, kapasitas tangki, dan estimasi konsumsi..." required></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Dimensions <span class="required">*</span></label>
+                                            <textarea id="add_dimensions" rows="3" placeholder="Jelaskan panjang, lebar, tinggi, wheelbase, dan kapasitas penumpang..." required></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Colour Option <span class="required">*</span></label>
+                                            <textarea id="add_colour_option" rows="2" placeholder="Contoh: Black, Platinum White Pearl." required></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Chassis & Drivetrain <span class="required">*</span></label>
+                                            <textarea id="add_chassis" rows="3" placeholder="Jelaskan sistem kemudi, suspensi, velg, dan ban..." required></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Exterior <span class="required">*</span></label>
+                                            <textarea id="add_exterior" rows="3" placeholder="Jelaskan fitur eksterior: grille, headlamp, rear lamp, dll..." required></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Interior & Comfort <span class="required">*</span></label>
+                                            <textarea id="add_interior" rows="3" placeholder="Jelaskan material jok, pengaturan kursi, AC, dll..." required></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Technology <span class="required">*</span></label>
+                                            <textarea id="add_technology" rows="3" placeholder="Jelaskan head unit, speaker, meter, wireless charger, dll..." required></textarea>
+                                        </div>
+                                        <div class="form-group">
+                                            <label>Safety Specs <span class="required">*</span></label>
+                                            <textarea id="add_safety" rows="3" placeholder="Jelaskan fitur keselamatan: TSS, airbag, sensor, dll..." required></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SUBMIT -->
+                        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                            <button type="button" class="btn btn-secondary" onclick="resetAddForm()">🗑️ Reset Form</button>
+                            <button type="submit" class="btn btn-primary" id="btnSubmitAdd">💾 Simpan ke Database</button>
+                        </div>
+                    </form>
+                </section>
+
+                <!-- ==================== IMPORT JSON ==================== -->
+                <section class="page-section" id="page-import">
+                    <div style="margin-bottom: 16px;">
+                        <button class="btn-back" onclick="navigateTo('dashboard')">⬅ Kembali ke Dashboard</button>
+                    </div>
+                    <div class="import-zone" id="importZone" onclick="document.getElementById('importFile').click()">
+                        <div class="upload-icon">📁</div>
+                        <h3>Drop file .json di sini atau klik untuk memilih</h3>
+                        <p>Format file harus berupa array JSON sesuai struktur data mobil. Maks 100 data per import.</p>
+                        <input type="file" id="importFile" accept=".json" style="display:none" onchange="handleImportFile(event)">
+                    </div>
+
+                    <div class="import-preview" id="importPreview">
+                        <div class="import-preview-header">
+                            <h3>📋 Preview Data Import (<span id="importCount">0</span> mobil)</h3>
+                            <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" onclick="cancelImport()">✕ Batal</button>
+                        </div>
+                        <div class="import-preview-body" id="importPreviewBody"></div>
+                        <div class="import-preview-footer">
+                            <button class="btn btn-secondary" onclick="cancelImport()">Batal</button>
+                            <button class="btn btn-primary" onclick="executeImport()" id="btnImport">🚀 Import ke Database</button>
+                        </div>
+                    </div>
+
+                    <!-- SAMPLE IMPORT FORMAT -->
+                    <div class="sample-card" style="margin-top: 24px;" id="importSampleCard">
+                        <div class="sample-header" onclick="toggleImportSample()">
+                            <h3>📖 Contoh Format File JSON untuk Import</h3>
+                            <span class="chevron">▼</span>
+                        </div>
+                        <div class="sample-body">
+                            <div class="sample-body-inner">
+                                <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px;">
+                                    File JSON harus berupa <strong>array</strong> ([ ]) yang berisi objek-objek data mobil. Contoh format:
+                                </p>
+                                <pre class="sample-json">[
+    {
+        <span class="key">"tipe_mobil"</span>: <span class="string">"Toyota New Alphard"</span>,
+        <span class="key">"varian"</span>: <span class="string">"2.5 XE (Gasoline)"</span>,
+        <span class="key">"harga"</span>: <span class="string">"1.355.000.000"</span>,
+        <span class="key">"est_bbm_kota"</span>: <span class="string">"7 km/l"</span>,
+        <span class="key">"est_bbm_tol"</span>: <span class="string">"10 km/l"</span>,
+        <span class="key">"spesifikasi"</span>: {
+            <span class="key">"segmentation"</span>: <span class="string">"..."</span>,
+            <span class="key">"performance_specs"</span>: <span class="string">"..."</span>,
+            <span class="key">"fuel_system_capacity_efficiency_estimates"</span>: <span class="string">"..."</span>,
+            <span class="key">"dimensions"</span>: <span class="string">"..."</span>,
+            <span class="key">"colour_option"</span>: <span class="string">"..."</span>,
+            <span class="key">"chassis_drivetrain"</span>: <span class="string">"..."</span>,
+            <span class="key">"exterior"</span>: <span class="string">"..."</span>,
+            <span class="key">"interior_comfort"</span>: <span class="string">"..."</span>,
+            <span class="key">"technology"</span>: <span class="string">"..."</span>,
+            <span class="key">"safety_specs"</span>: <span class="string">"..."</span>
+        }
+    },
+    { ... mobil kedua ... }
+]</pre>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ==================== EKSTRAK BROSUR AI ==================== -->
+                <section class="page-section" id="page-ekstrak">
+                    <div style="margin-bottom: 16px;">
+                        <button class="btn-back" onclick="navigateTo('dashboard')">⬅ Kembali ke Dashboard</button>
+                    </div>
+                    <div class="import-zone" id="brochureZone" onclick="document.getElementById('brochureFile').click()">
+                        <div class="upload-icon">📄</div>
+                        <h3>Drop file brosur di sini atau klik untuk memilih</h3>
+                        <p>Format file yang didukung: PDF, PNG, JPG, atau TXT. Maksimum file 10MB.</p>
+                        <input type="file" id="brochureFile" accept=".pdf,.png,.jpg,.jpeg,.txt" style="display:none" onchange="handleBrochureFile(event)">
+                    </div>
+
+                    <div class="import-preview" id="brochurePreview" style="display:none;">
+                        <div class="import-preview-header">
+                            <h3>📋 File Brosur Terpilih</h3>
+                            <button class="btn btn-secondary" style="padding: 6px 14px; font-size: 12px;" onclick="cancelBrochure()">✕ Batal</button>
+                        </div>
+                        <div class="import-preview-body" style="padding: 24px; text-align: center;">
+                            <div style="font-size: 48px; margin-bottom: 12px;" id="brochureFileIcon">📄</div>
+                            <h4 id="brochureFileName" style="color: var(--text-primary); margin-bottom: 6px;">brosur.pdf</h4>
+                            <p id="brochureFileSize" style="color: var(--text-muted); font-size: 13px;">Size: 0 KB</p>
+                        </div>
+                        <div class="import-preview-footer">
+                            <button class="btn btn-secondary" onclick="cancelBrochure()">Batal</button>
+                            <button class="btn btn-primary" onclick="executeBrochureExtraction()" id="btnExtractBrochure">🤖 Proses Ekstraksi AI</button>
+                        </div>
+                    </div>
+
+                    <!-- PREVIEW HASIL EKSTRAKSI MULTI-MOBIL -->
+                    <div class="form-card" id="brochureResultContainer" style="display:none; margin-top: 24px;">
+                        <div class="form-card-title">✨ Hasil Ekstraksi AI (<span id="extractedCarsCount">0</span> Mobil Terdeteksi)</div>
+                        <div class="form-card-desc">Pilih mobil di bawah ini untuk ditinjau dan dimasukkan ke Form Tambah Data</div>
+                        
+                        <div class="table-container" style="margin-top: 16px; box-shadow: none; border: 1px solid var(--border);">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Tipe Mobil</th>
+                                        <th>Varian</th>
+                                        <th>Harga (Rp)</th>
+                                        <th>BBM Kota</th>
+                                        <th>BBM Tol</th>
+                                        <th>Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="extractedCarsTableBody">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+                            <button class="btn btn-secondary" onclick="resetBrochureResult()">✕ Tutup Hasil</button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

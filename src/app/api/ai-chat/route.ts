@@ -347,6 +347,7 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
          FITUR LAINNYA:
          - Jika kustomer minta "captain seat", masukkan ["captain seat"].
          - Jika kustomer minta "kamera 360", masukkan ["360 camera", "around view", "kamera 360"].
+         - Jika kustomer minta "wireless charger" / "cas nirkabel", masukkan ["wireless charger", "cas nirkabel"].
          - DILARANG memasukkan nama model mobil ke sini.
       - "exclude_keywords": Array of strings. Jika kustomer minta "TIDAK MAU X" atau "SELAIN X". Selain itu, jika kustomer mencari mobil penumpang / harian / perkotaan / keluarga, OTOMATIS masukkan kata-kata komersial ke exclude_keywords (contoh: ["truk", "pick up", "pickup", "cab-chs", "komersial"]).
       - "budget_min": Angka murni (number) batas BAWAH harga dalam Rupiah. Jika kustomer bilang "di atas 200 juta", isi 200000000. Jika tidak ada batas bawah, isi null.
@@ -506,6 +507,38 @@ function combineRRF(candidates: any[], queryText: string): any[] {
   return scored.map((s) => s.row);
 }
 
+// --- Dynamic Toyota Feature Synonym Dictionary ---
+const FEATURE_SYNONYM_MAP: Record<string, { triggers: string[]; targets: string[] }> = {
+  kamera_360: {
+    triggers: ["360", "around view", "kamera 360"],
+    targets: ["360", "around view", "panoramic view", "pvm", "kamera"],
+  },
+  sunroof: {
+    triggers: ["sunroof"],
+    targets: ["sunroof"]
+  },
+  panoramic: {
+    triggers: ["panoramic"],
+    targets: ["panoramic"]
+  },
+  moonroof: {
+    triggers: ["moonroof"],
+    targets: ["moonroof"]
+  },
+  captain_seat: {
+    triggers: ["captain"],
+    targets: ["captain", "kapten"]
+  },
+  tss: {
+    triggers: ["tss", "safety sense"],
+    targets: ["tss", "safety sense"]
+  },
+  wireless_charger: {
+    triggers: ["wireless charger", "cas nirkabel"],
+    targets: ["wireless charger", "nirkabel", "qi charger"],
+  },
+};
+
 // --- Helper for Dynamic Exact Keyword Feature Fallback Matching ---
 function hasFeatureMatch(hasil: any[], exactKeywords: string[]): boolean {
   if (!exactKeywords || exactKeywords.length === 0) return true;
@@ -513,29 +546,17 @@ function hasFeatureMatch(hasil: any[], exactKeywords: string[]): boolean {
 
   return hasil.some((row) => {
     const text = `${row.tipe_mobil || ''} ${row.varian || ''} ${typeof row.spesifikasi_detail === 'string' ? row.spesifikasi_detail : JSON.stringify(row.spesifikasi_detail || '')}`.toLowerCase();
-    
+
     return exactKeywords.some((kw) => {
       const cleaned = kw.toLowerCase().trim();
       if (!cleaned) return false;
 
-      // Special Toyota Feature Synonym Mappings
-      if (cleaned.includes("360") || cleaned.includes("around view") || cleaned.includes("kamera 360")) {
-        return text.includes("360") || text.includes("around view") || text.includes("panoramic view") || text.includes("pvm") || text.includes("kamera");
-      }
-      if (cleaned.includes("sunroof")) {
-        return text.includes("sunroof");
-      }
-      if (cleaned.includes("panoramic")) {
-        return text.includes("panoramic");
-      }
-      if (cleaned.includes("moonroof")) {
-        return text.includes("moonroof");
-      }
-      if (cleaned.includes("captain")) {
-        return text.includes("captain") || text.includes("kapten");
-      }
-      if (cleaned.includes("tss") || cleaned.includes("safety sense")) {
-        return text.includes("tss") || text.includes("safety sense");
+      const matchedGroup = Object.values(FEATURE_SYNONYM_MAP).find((group) =>
+        group.triggers.some((trigger) => cleaned.includes(trigger))
+      );
+
+      if (matchedGroup) {
+        return matchedGroup.targets.some((target) => text.includes(target));
       }
 
       // 1. Matched as exact phrase in text
@@ -560,19 +581,15 @@ function buildFeatureSqlCondition(exactKeywords: string[]): string {
     const cleaned = kw.toLowerCase().trim().replace(/'/g, "''");
     if (!cleaned) continue;
 
-    // Special Toyota Feature Synonym Mappings
-    if (cleaned.includes("360") || cleaned.includes("around view") || cleaned.includes("kamera 360")) {
-      clauses.push("(LOWER(spesifikasi_detail) LIKE '%360%' OR LOWER(spesifikasi_detail) LIKE '%around view%' OR LOWER(spesifikasi_detail) LIKE '%panoramic view%' OR LOWER(spesifikasi_detail) LIKE '%pvm%' OR LOWER(varian) LIKE '%360%')");
-    } else if (cleaned.includes("sunroof")) {
-      clauses.push("(LOWER(spesifikasi_detail) LIKE '%sunroof%' OR LOWER(varian) LIKE '%sunroof%')");
-    } else if (cleaned.includes("panoramic")) {
-      clauses.push("(LOWER(spesifikasi_detail) LIKE '%panoramic%' OR LOWER(varian) LIKE '%panoramic%')");
-    } else if (cleaned.includes("moonroof")) {
-      clauses.push("(LOWER(spesifikasi_detail) LIKE '%moonroof%' OR LOWER(varian) LIKE '%moonroof%')");
-    } else if (cleaned.includes("captain")) {
-      clauses.push("(LOWER(spesifikasi_detail) LIKE '%captain%' OR LOWER(spesifikasi_detail) LIKE '%kapten%')");
-    } else if (cleaned.includes("tss") || cleaned.includes("safety sense")) {
-      clauses.push("(LOWER(spesifikasi_detail) LIKE '%tss%' OR LOWER(spesifikasi_detail) LIKE '%safety sense%' OR LOWER(varian) LIKE '%tss%')");
+    const matchedGroup = Object.values(FEATURE_SYNONYM_MAP).find((group) =>
+      group.triggers.some((trigger) => cleaned.includes(trigger))
+    );
+
+    if (matchedGroup) {
+      const synonymLikes = matchedGroup.targets
+        .map((target) => `LOWER(spesifikasi_detail) LIKE '%${target}%' OR LOWER(varian) LIKE '%${target}%'`)
+        .join(" OR ");
+      clauses.push(`(${synonymLikes})`);
     } else {
       const words = cleaned.split(/\s+/).filter((w) => w.length > 2);
       if (words.length > 1) {
@@ -1237,4 +1254,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

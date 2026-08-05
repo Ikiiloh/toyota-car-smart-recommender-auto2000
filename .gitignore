@@ -59,3 +59,7 @@ client_secret.json
 *.tsbuildinfo
 next-env.d.ts
 HYBRID_RAG_WORKFLOW.md
+
+# evaluation & benchmarks
+/evaluate/
+/eval/
