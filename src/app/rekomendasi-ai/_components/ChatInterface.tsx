@@ -150,7 +150,7 @@ function RadarLoader() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center py-10 px-4 w-full bg-muted/20 border border-border/60 rounded-3xl backdrop-blur-sm shadow-inner relative overflow-hidden">
+    <div className="flex flex-col items-center justify-center py-6 sm:py-10 px-3 sm:px-4 w-full bg-muted/20 border border-border/60 rounded-2xl sm:rounded-3xl backdrop-blur-sm shadow-inner relative overflow-hidden">
       <style jsx global>{`
         @keyframes radar-sweep {
           0% { transform: rotate(0deg); }
@@ -176,7 +176,7 @@ function RadarLoader() {
       `}</style>
 
       {/* Visual Radar Circle */}
-      <div className="relative w-48 h-48 rounded-full border border-red-500/20 flex items-center justify-center bg-black/5 dark:bg-white/5">
+      <div className="relative w-36 h-36 sm:w-48 sm:h-48 rounded-full border border-red-500/20 flex items-center justify-center bg-black/5 dark:bg-white/5">
         {/* Pulsing rings */}
         <div className="absolute inset-0 rounded-full border border-red-500/10 scale-75" />
         <div className="absolute inset-0 rounded-full border border-red-500/15 scale-50" />
@@ -193,22 +193,22 @@ function RadarLoader() {
         <div className="absolute top-1/4 left-1/3 w-2.5 h-2.5 bg-red-500 rounded-full animate-dot-flash shadow-lg shadow-red-500/50 [animation-delay:0.2s]" />
         <div className="absolute bottom-1/4 right-1/4 w-3 h-3 bg-red-500 rounded-full animate-dot-flash shadow-lg shadow-red-500/50 [animation-delay:0.7s]" />
         <div className="absolute top-1/2 right-1/3 w-2 h-2 bg-red-500 rounded-full animate-dot-flash shadow-lg shadow-red-500/50 [animation-delay:1.3s]" />
-        <div className="absolute bottom-1/3 left-1/4 w-2 w-2 bg-teal-500 rounded-full animate-dot-flash shadow-lg shadow-teal-500/50 [animation-delay:1.9s]" />
+        <div className="absolute bottom-1/3 left-1/4 w-2 h-2 bg-teal-500 rounded-full animate-dot-flash shadow-lg shadow-teal-500/50 [animation-delay:1.9s]" />
 
-        <div className="relative z-10 w-12 h-12 bg-card border border-red-500/40 rounded-2xl flex items-center justify-center shadow-lg shadow-red-500/10">
-          <Compass className="w-6 h-6 text-red-600 animate-spin [animation-duration:10s]" />
+        <div className="relative z-10 w-10 h-10 sm:w-12 sm:h-12 bg-card border border-red-500/40 rounded-2xl flex items-center justify-center shadow-lg shadow-red-500/10">
+          <Compass className="w-5 h-5 sm:w-6 sm:h-6 text-red-600 animate-spin [animation-duration:10s]" />
         </div>
       </div>
 
       {/* Status description */}
-      <div className="mt-8 text-center space-y-2.5 max-w-sm relative z-10">
-        <h4 className="text-sm font-bold text-foreground tracking-wide flex items-center justify-center gap-2">
-          <Sparkles className="w-4 h-4 text-red-500 animate-pulse" />
-          Loading Data...
+      <div className="mt-5 sm:mt-8 text-center space-y-2 max-w-sm relative z-10">
+        <h4 className="text-xs sm:text-sm font-bold text-foreground tracking-wide flex items-center justify-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-500 animate-pulse" />
+          Mencari Unit Toyota Sesuai Kriteria...
         </h4>
 
         {/* Progress simulator bars */}
-        <div className="w-44 h-1.5 bg-muted rounded-full mx-auto overflow-hidden border border-border/40">
+        <div className="w-36 sm:w-44 h-1.5 bg-muted rounded-full mx-auto overflow-hidden border border-border/40">
           <div className="h-full bg-gradient-to-r from-red-600 to-rose-400 rounded-full animate-infinite-scroll w-1/2" style={{ animation: "radar-progress 2s cubic-bezier(0.4, 0, 0.2, 1) infinite" }} />
         </div>
       </div>
@@ -587,22 +587,22 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] w-full max-w-5xl mx-auto px-4 py-4 md:py-6 relative">
+    <div className="flex flex-col h-[calc(100dvh-64px)] sm:h-[calc(100dvh-56px)] w-full px-2 sm:px-4 md:px-6 lg:px-8 py-1 sm:py-3 md:py-4 pb-16 sm:pb-0 relative">
       {/* Header bar */}
-      <div className="flex-shrink-0 flex items-center justify-between border-b pb-4 mb-4">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-10 h-10 bg-gradient-to-br from-red-600 to-rose-700 rounded-xl flex items-center justify-center shadow-lg shadow-red-600/10">
-              <Bot className="w-5.5 h-5.5 text-white" />
+      <div className="flex-shrink-0 flex items-center justify-between border-b pb-2 sm:pb-3 mb-1 sm:mb-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="relative flex-shrink-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-red-600 to-rose-700 rounded-xl flex items-center justify-center shadow-lg shadow-red-600/10">
+              <Bot className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-white" />
             </div>
-            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-background"></div>
+            <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-green-500 rounded-full border-2 border-background"></div>
           </div>
           <div>
-            <h1 className="font-bold text-sm md:text-base tracking-tight text-foreground flex items-center gap-1.5">
+            <h1 className="font-bold text-xs sm:text-sm md:text-base tracking-tight text-foreground flex items-center gap-1.5">
               Toyota Smart Recommender
             </h1>
-            <p className="text-xs text-muted-foreground flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500/20" />
+            <p className="text-[10px] sm:text-xs text-muted-foreground flex items-center gap-1">
+              <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-yellow-500 fill-yellow-500/20" />
               Asisten Konsultasi Digital
             </p>
           </div>
@@ -613,10 +613,11 @@ export default function ChatInterface() {
             onClick={resetChat}
             variant="outline"
             size="sm"
-            className="rounded-xl border-border/80 text-xs font-semibold gap-1.5 hover:bg-muted/80 text-muted-foreground hover:text-foreground transition-all duration-300"
+            className="rounded-xl border-border/80 text-[11px] sm:text-xs font-semibold gap-1 sm:gap-1.5 px-2.5 sm:px-3 h-8 sm:h-9 hover:bg-muted/80 text-muted-foreground hover:text-foreground active:scale-[0.98] transition-all duration-300"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            Konsultasi Baru
+            <span className="hidden sm:inline">Konsultasi Baru</span>
+            <span className="sm:hidden">Baru</span>
           </Button>
         )}
       </div>
@@ -624,11 +625,11 @@ export default function ChatInterface() {
       {/* Dynamic Content View */}
       {isZeroState ? (
         /* Zero State / Landing View */
-        <div className="flex-1 overflow-y-auto flex flex-col justify-start pt-8 md:pt-16 items-center max-w-4xl mx-auto w-full space-y-8 md:space-y-12 pb-8 animate-fade-in scrollbar-none">
+        <div className="flex-1 overflow-y-auto flex flex-col justify-start pt-0 sm:pt-4 md:pt-8 items-center max-w-3xl mx-auto w-full space-y-4 sm:space-y-6 md:space-y-10 pb-4 animate-fade-in scrollbar-none">
           <Hero />
 
           {/* Large Search-bar Prompt Input */}
-          <div className="w-full max-w-2xl bg-card border border-border/80 shadow-2xl rounded-3xl p-2.5 transition-all duration-300 focus-within:ring-2 focus-within:ring-red-500/20 focus-within:border-red-500/80 hover:border-border-foreground/20 backdrop-blur-md">
+          <div className="w-full max-w-2xl bg-card border border-border/80 shadow-2xl rounded-2xl sm:rounded-3xl p-2 sm:p-2.5 transition-all duration-300 focus-within:ring-2 focus-within:ring-red-500/20 focus-within:border-red-500/80 hover:border-border-foreground/20 backdrop-blur-md">
             <div className="flex items-end gap-2">
               <textarea
                 ref={inputRef}
@@ -636,34 +637,34 @@ export default function ChatInterface() {
                 onChange={handleTextareaInput}
                 onKeyDown={handleKeyDown}
                 placeholder={hasPendingTopicChoice ? "Silakan pilih Lanjutkan Topik atau Topik Baru..." : "Ketik kriteria Anda di sini... (Contoh: 'Innova hybrid irit bbm di bawah 600 juta')"}
-                className="w-full bg-transparent border-0 resize-none outline-none focus:ring-0 text-sm md:text-base py-3 px-4 min-h-[64px] max-h-[150px] scrollbar-none placeholder:text-muted-foreground/60 text-foreground"
+                className="w-full bg-transparent border-0 resize-none outline-none focus:ring-0 text-xs sm:text-sm md:text-base py-2.5 sm:py-3 px-3 sm:px-4 min-h-[48px] sm:min-h-[64px] max-h-[150px] scrollbar-none placeholder:text-muted-foreground/60 text-foreground"
                 disabled={isLoading || hasPendingTopicChoice}
               />
               <Button
                 onClick={() => sendMessage()}
                 disabled={!input.trim() || isLoading || hasPendingTopicChoice}
-                className="h-12 w-12 rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/15 transition-all duration-300 hover:shadow-red-500/35 flex-shrink-0 flex items-center justify-center disabled:opacity-50"
+                className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/15 transition-all duration-300 hover:shadow-red-500/35 flex-shrink-0 flex items-center justify-center disabled:opacity-50 active:scale-[0.98]"
                 size="icon"
               >
-                <SendHorizonal className="w-5 h-5" />
+                <SendHorizonal className="w-4 h-4 sm:w-5 sm:h-5" />
               </Button>
             </div>
           </div>
 
           {/* Suggested Prompts chips */}
-          <div className="w-full max-w-2xl text-center">
-            <h3 className="text-[10px] md:text-xs font-bold text-muted-foreground/60 uppercase tracking-widest mb-4">
+          <div className="w-full max-w-2xl text-center px-1">
+            <h3 className="text-[10px] md:text-xs font-bold text-muted-foreground/60 uppercase tracking-widest mb-2 sm:mb-4">
               Saran Pertanyaan Anda
             </h3>
-            <div className="flex flex-wrap justify-center gap-2.5 px-2">
+            <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
               {SUGGESTION_CHIPS.map((chip, chipIdx) => (
                 <button
                   key={chipIdx}
                   onClick={() => sendMessage(chip.text)}
-                  className="flex items-center gap-2.5 text-xs px-4.5 py-3 bg-card hover:bg-red-50 dark:hover:bg-red-950/10 border hover:border-red-300 dark:hover:border-red-900 rounded-2xl transition-all duration-300 shadow-sm hover:shadow-md group text-left"
+                  className="flex items-center gap-2 text-xs px-2.5 sm:px-3.5 py-2 sm:py-3 bg-card hover:bg-red-50 dark:hover:bg-red-950/10 border hover:border-red-300 dark:hover:border-red-900 rounded-xl sm:rounded-2xl transition-all duration-300 shadow-sm hover:shadow-md group text-left active:scale-[0.98]"
                 >
-                  <chip.icon className="w-4 h-4 text-red-600 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                  <span className="text-muted-foreground group-hover:text-foreground font-semibold transition-colors">
+                  <chip.icon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-600 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                  <span className="text-muted-foreground group-hover:text-foreground font-semibold transition-colors text-[10px] sm:text-xs leading-tight">
                     {chip.text}
                   </span>
                 </button>
@@ -675,7 +676,7 @@ export default function ChatInterface() {
         /* Chat Feed Active View */
         <div className="flex-1 flex flex-col min-h-0">
           {/* Scrollable Message Box */}
-          <div className="flex-1 overflow-y-auto px-1 py-4 space-y-6 scrollbar-thin scrollbar-thumb-muted">
+          <div className="flex-1 overflow-y-auto px-1 py-2 sm:py-4 space-y-3 sm:space-y-6 scrollbar-thin scrollbar-thumb-muted">
             {messages.map((msg, idx) => {
               const cars = msg.role === "assistant" ? parseContextCars(contextData[idx] || "", msg.content) : [];
 
@@ -694,41 +695,41 @@ export default function ChatInterface() {
 
                   {/* Message Bubble Container */}
                   <div
-                    className={`max-w-[85%] md:max-w-[80%] flex flex-col space-y-4 ${msg.role === "user" ? "items-end" : "items-start"
+                    className={`max-w-[90%] sm:max-w-[85%] md:max-w-[80%] flex flex-col space-y-3 sm:space-y-4 ${msg.role === "user" ? "items-end" : "items-start"
                       }`}
                   >
                     {/* Text block */}
                     <div
-                      className={`rounded-3xl px-5 py-4 shadow-sm border ${msg.role === "user"
+                      className={`rounded-2xl sm:rounded-3xl px-3 py-2.5 sm:px-5 sm:py-4 shadow-sm border ${msg.role === "user"
                         ? "bg-red-600 border-red-700 text-white rounded-tr-md"
                         : "bg-card border-border/80 rounded-tl-md text-foreground"
                         }`}
                     >
                       {msg.role === "assistant" ? (
-                        <div className="text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-1 marker:text-red-500">
+                        <div className="text-xs sm:text-sm leading-relaxed prose prose-sm dark:prose-invert max-w-none prose-p:my-1.5 sm:prose-p:my-2 prose-ul:my-1.5 sm:prose-ul:my-2 prose-ol:my-1.5 sm:prose-ol:my-2 prose-li:my-0.5 sm:prose-li:my-1 marker:text-red-500">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {msg.content}
                           </ReactMarkdown>
                         </div>
                       ) : (
-                        <p className="text-sm font-medium leading-relaxed">{msg.content}</p>
+                        <p className="text-xs sm:text-sm font-medium leading-relaxed">{msg.content}</p>
                       )}
                     </div>
 
                     {/* Rendering Car Cards (Grid structure) if DB context returns cars */}
                     {msg.role === "assistant" && cars.length > 0 && (
-                      <div className="w-full space-y-4 pt-2">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="w-full space-y-3 sm:space-y-4 pt-1 sm:pt-2">
+                        <div className="grid grid-cols-2 gap-2 sm:gap-4">
                           {cars.map((car, carIdx) => {
                             const isComparing = compareList.some((item) => item.name === car.name);
 
                             return (
                               <div
                                 key={carIdx}
-                                className="group flex flex-col bg-card border border-border/85 rounded-2xl overflow-hidden hover:border-red-500/50 hover:shadow-xl hover:shadow-red-500/5 transition-all duration-300"
+                                className="group flex flex-col bg-card border border-border/85 rounded-xl sm:rounded-2xl overflow-hidden hover:border-red-500/50 hover:shadow-xl hover:shadow-red-500/5 transition-all duration-300"
                               >
                                 {/* Blueprint Header graphic */}
-                                <div className="relative h-40 bg-gradient-to-br from-muted/50 to-muted/20 dark:from-neutral-900/60 dark:to-neutral-950/40 flex items-center justify-center overflow-hidden border-b border-border/50">
+                                <div className="relative h-24 sm:h-40 bg-gradient-to-br from-muted/50 to-muted/20 dark:from-neutral-900/60 dark:to-neutral-950/40 flex items-center justify-center overflow-hidden border-b border-border/50">
                                   <div className="absolute inset-0 bg-radial-gradient from-red-600/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
                                   {/* Render actual image if found, otherwise fallback to SVG silhouette */}
@@ -743,20 +744,20 @@ export default function ChatInterface() {
                                   )}
 
                                   {/* Badges */}
-                                  <div className="absolute top-2.5 right-2.5 flex flex-wrap gap-1 items-end justify-end">
+                                  <div className="absolute top-1.5 right-1.5 sm:top-2.5 sm:right-2.5 flex flex-wrap gap-0.5 sm:gap-1 items-end justify-end">
                                     {car.hasTSS && (
-                                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-600 dark:text-teal-400 text-[9px] font-bold tracking-wide uppercase shadow-sm">
-                                        <Sparkles className="w-2.5 h-2.5 text-teal-500 animate-spin [animation-duration:5s]" />
+                                      <span className="inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-600 dark:text-teal-400 text-[7px] sm:text-[9px] font-bold tracking-wide uppercase shadow-sm">
+                                        <Sparkles className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-teal-500 animate-spin [animation-duration:5s]" />
                                         TSS
                                       </span>
                                     )}
                                     {car.fuelType === "Hybrid" && (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-[9px] font-bold tracking-wide uppercase shadow-sm">
+                                      <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-[7px] sm:text-[9px] font-bold tracking-wide uppercase shadow-sm">
                                         HEV
                                       </span>
                                     )}
                                     {car.fuelType === "Listrik" && (
-                                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-[9px] font-bold tracking-wide uppercase shadow-sm">
+                                      <span className="inline-flex items-center px-1.5 sm:px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-600 dark:text-blue-400 text-[7px] sm:text-[9px] font-bold tracking-wide uppercase shadow-sm">
                                         BEV
                                       </span>
                                     )}
@@ -764,61 +765,63 @@ export default function ChatInterface() {
                                 </div>
 
                                 {/* Card details */}
-                                <div className="p-4 flex-1 flex flex-col space-y-4">
-                                  <div className="space-y-1">
-                                    <h4 className="font-bold text-sm md:text-base text-foreground line-clamp-2 leading-tight group-hover:text-red-600 transition-colors">
+                                <div className="p-2.5 sm:p-4 flex-1 flex flex-col space-y-2 sm:space-y-4">
+                                  <div className="space-y-0.5 sm:space-y-1">
+                                    <h4 className="font-bold text-[11px] sm:text-sm md:text-base text-foreground line-clamp-2 leading-tight group-hover:text-red-600 transition-colors">
                                       {car.name}
                                     </h4>
-                                    <p className="text-xs md:text-sm font-bold text-red-600">
+                                    <p className="text-[10px] sm:text-xs md:text-sm font-bold text-red-600">
                                       {car.price}
                                     </p>
                                   </div>
 
                                   {/* Spec Bulletpoints */}
-                                  <div className="grid grid-cols-2 gap-x-2 gap-y-2 text-[11px] text-muted-foreground border-t border-b border-border/40 py-2.5 mt-auto">
-                                    <div className="flex items-center gap-1.5">
-                                      <Gauge className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
+                                  <div className="grid grid-cols-2 gap-x-1 sm:gap-x-2 gap-y-1 sm:gap-y-2 text-[9px] sm:text-[11px] text-muted-foreground border-t border-b border-border/40 py-1.5 sm:py-2.5 mt-auto">
+                                    <div className="flex items-center gap-1">
+                                      <Gauge className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-muted-foreground/60 flex-shrink-0" />
                                       <span className="truncate">
                                         {car.bbmKota ? `${car.bbmKota} km/l` : "Bensin"}
                                       </span>
                                     </div>
-                                    <div className="flex items-center gap-1.5">
-                                      <Zap className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
+                                    <div className="flex items-center gap-1">
+                                      <Zap className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-muted-foreground/60 flex-shrink-0" />
                                       <span className="truncate">{car.transmission}</span>
                                     </div>
-                                    <div className="flex items-center gap-1.5 col-span-2">
-                                      <Users className="w-3.5 h-3.5 text-muted-foreground/60 flex-shrink-0" />
+                                    <div className="flex items-center gap-1 col-span-2">
+                                      <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-muted-foreground/60 flex-shrink-0" />
                                       <span>{car.capacity}</span>
                                     </div>
                                   </div>
 
                                   {/* Actions */}
-                                  <div className="flex gap-2">
+                                  <div className="flex gap-1.5 sm:gap-2 pt-1">
                                     <Button
                                       onClick={() => setActiveCarDetail(car)}
                                       variant="outline"
-                                      className="flex-1 h-8 text-xs font-semibold rounded-lg hover:bg-muted/80 flex items-center justify-center gap-1"
+                                      className="flex-1 h-7 sm:h-8 text-[10px] sm:text-xs font-semibold rounded-md sm:rounded-lg hover:bg-muted/80 flex items-center justify-center gap-0.5 sm:gap-1 active:scale-[0.98] px-1.5 sm:px-3"
                                     >
-                                      <Eye className="w-3.5 h-3.5" />
+                                      <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                                       Detail
                                     </Button>
                                     <Button
                                       onClick={() => toggleCompare(car)}
                                       variant={isComparing ? "secondary" : "default"}
-                                      className={`flex-1 h-8 text-xs font-semibold rounded-lg flex items-center justify-center gap-1 ${isComparing
+                                      className={`flex-1 h-7 sm:h-8 text-[10px] sm:text-xs font-semibold rounded-md sm:rounded-lg flex items-center justify-center gap-0.5 sm:gap-1 active:scale-[0.98] px-1.5 sm:px-3 ${isComparing
                                         ? "bg-teal-500/10 border border-teal-500/20 text-teal-600 dark:text-teal-400 hover:bg-teal-500/20"
                                         : "bg-red-600 hover:bg-red-700 text-white shadow-sm"
                                         }`}
                                     >
                                       {isComparing ? (
                                         <>
-                                          <Check className="w-3.5 h-3.5" />
-                                          Dipilih
+                                          <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                          <span className="hidden sm:inline">Dipilih</span>
+                                          <span className="sm:hidden">✓</span>
                                         </>
                                       ) : (
                                         <>
-                                          <Scale className="w-3.5 h-3.5" />
-                                          Bandingkan
+                                          <Scale className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                          <span className="hidden sm:inline">Bandingkan</span>
+                                          <span className="sm:hidden">Banding</span>
                                         </>
                                       )}
                                     </Button>
@@ -831,16 +834,16 @@ export default function ChatInterface() {
 
                         {/* Interactive confirmation prompt box */}
                         {!respondedTopicMessages[idx] && topicStartIndex <= idx + 1 && (
-                          <div className="flex flex-col sm:flex-row items-center justify-between p-4 bg-muted/40 border border-border/60 rounded-2xl gap-3 animate-fade-in">
-                            <span className="text-xs font-semibold text-muted-foreground">
+                          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between p-3.5 sm:p-4 bg-muted/40 border border-border/60 rounded-2xl gap-3 animate-fade-in">
+                            <span className="text-xs font-semibold text-muted-foreground text-center sm:text-left">
                               Apakah Bapak/Ibu ingin melanjutkan pencarian berdasarkan rekomendasi di atas?
                             </span>
-                            <div className="flex gap-2">
+                            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                               <Button
                                 onClick={() => handleTopicChoice(idx, 'yes')}
                                 variant="outline"
                                 size="sm"
-                                className="h-8 text-xs font-bold rounded-lg border-border/80 text-muted-foreground hover:text-foreground"
+                                className="w-full sm:w-auto h-9 sm:h-8 text-xs font-bold rounded-lg border-border/80 text-muted-foreground hover:text-foreground active:scale-[0.98]"
                               >
                                 Ya, Lanjutkan
                               </Button>
@@ -848,7 +851,7 @@ export default function ChatInterface() {
                                 onClick={() => handleTopicChoice(idx, 'no')}
                                 variant="default"
                                 size="sm"
-                                className="h-8 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-700 text-white"
+                                className="w-full sm:w-auto h-9 sm:h-8 text-xs font-bold rounded-lg bg-red-600 hover:bg-red-700 text-white active:scale-[0.98]"
                               >
                                 Tidak, Topik Baru
                               </Button>
@@ -885,7 +888,7 @@ export default function ChatInterface() {
           </div>
 
           {/* Docked Sticky Bottom Input */}
-          <div className="sticky bottom-0 bg-background/90 backdrop-blur-md border-t pt-4 pb-1">
+          <div className="sticky bottom-0 bg-background/95 backdrop-blur-md border-t pt-3 sm:pt-4 pb-2 sm:pb-3">
             <div className="flex items-end gap-2 max-w-4xl mx-auto relative">
               <div className="flex-1 relative">
                 <textarea
@@ -895,29 +898,29 @@ export default function ChatInterface() {
                   onKeyDown={handleKeyDown}
                   placeholder={hasPendingTopicChoice ? "Silakan pilih Lanjutkan Topik atau Topik Baru..." : "Ketik kriteria/pertanyaan lanjutan Anda di sini..."}
                   rows={1}
-                  className="w-full resize-none rounded-2xl border border-border/80 bg-muted/40 px-4 py-3.5 pr-12 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all placeholder:text-muted-foreground/50 text-foreground"
+                  className="w-full resize-none rounded-2xl border border-border/80 bg-muted/40 px-3.5 sm:px-4 py-3 sm:py-3.5 pr-10 sm:pr-12 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-500 transition-all placeholder:text-muted-foreground/50 text-foreground"
                   disabled={isLoading || hasPendingTopicChoice}
                 />
               </div>
               <Button
                 onClick={() => sendMessage()}
                 disabled={!input.trim() || isLoading || hasPendingTopicChoice}
-                className="h-11 w-11 rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/15 hover:shadow-red-500/35 transition-all flex-shrink-0"
+                className="h-10 w-10 sm:h-11 sm:w-11 rounded-2xl bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-500/15 hover:shadow-red-500/35 transition-all flex-shrink-0 active:scale-[0.98]"
                 size="icon"
               >
                 <SendHorizonal className="w-4 h-4" />
               </Button>
             </div>
-            <p className="text-center text-[10px] text-muted-foreground/40 mt-3.5">
-              Semua estimasi harga OTR Labuhanbatu. AI dapat membuat kesalahan.
+            <p className="text-center text-[9px] sm:text-[10px] text-muted-foreground/50 mt-2 sm:mt-3">
+              Estimasi harga OTR Labuhanbatu. AI dapat membuat kesalahan.
             </p>
           </div>
         </div>
       )}
 
-      {/* Floating Compare Drawer Bar */}
+      {/* Floating Compare Drawer Bar - positioned ABOVE sticky bottom input on mobile */}
       {compareList.length > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-md bg-card border border-border shadow-2xl rounded-2xl p-4 flex items-center justify-between gap-4 animate-bounce-short backdrop-blur-md">
+        <div className="fixed bottom-[7.5rem] sm:bottom-24 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-md bg-card/95 border border-border shadow-2xl rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 animate-bounce-short backdrop-blur-md">
           <style jsx>{`
             @keyframes bounce-short {
               0%, 100% { transform: translate(-50%, 0); }
@@ -928,39 +931,39 @@ export default function ChatInterface() {
             }
           `}</style>
 
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col space-y-1 overflow-hidden">
             <p className="text-xs font-bold text-foreground">
               Bandingkan Mobil ({compareList.length}/3)
             </p>
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
               {compareList.map((car, cIdx) => (
-                <div key={cIdx} className="relative group/tag">
-                  <span className="inline-flex text-[9px] bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 font-bold px-2 py-0.5 rounded-md max-w-[80px] truncate">
+                <div key={cIdx} className="relative group/tag flex-shrink-0">
+                  <span className="inline-flex text-[9px] bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 font-bold px-2 py-0.5 rounded-md max-w-[90px] truncate">
                     {car.name.replace(/Toyota|New|All/g, "").trim()}
                   </span>
                   <button
                     onClick={() => removeCompareCar(car.name)}
-                    className="absolute -top-1.5 -right-1 w-3 h-3 rounded-full bg-muted-foreground hover:bg-red-600 text-white flex items-center justify-center text-[8px] transition-colors"
+                    className="absolute -top-1.5 -right-1 w-3.5 h-3.5 rounded-full bg-muted-foreground hover:bg-red-600 text-white flex items-center justify-center text-[8px] transition-colors"
                   >
-                    <X className="w-2 h-2" />
+                    <X className="w-2.5 h-2.5" />
                   </button>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-1.5 flex-shrink-0">
             <Button
               onClick={() => setCompareList([])}
               variant="ghost"
               size="icon"
-              className="h-9 w-9 rounded-xl hover:bg-muted"
+              className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl hover:bg-muted"
             >
               <X className="w-4 h-4" />
             </Button>
             <Button
               onClick={() => setIsCompareOpen(true)}
-              className="h-9 px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-red-500/10"
+              className="h-8 sm:h-9 px-3 sm:px-4 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-red-500/10 active:scale-[0.98]"
             >
               Bandingkan ({compareList.length})
             </Button>
@@ -1076,10 +1079,10 @@ export default function ChatInterface() {
 
       {/* 2. Bandingkan Mobil Modal */}
       <Dialog open={isCompareOpen} onOpenChange={setIsCompareOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl">
-          <DialogHeader className="border-b pb-4">
-            <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-              <Scale className="w-5.5 h-5.5 text-red-600" />
+        <DialogContent className="max-w-4xl max-h-[90dvh] w-[95vw] sm:w-full overflow-y-auto rounded-2xl p-4 sm:p-6">
+          <DialogHeader className="border-b pb-3 sm:pb-4">
+            <DialogTitle className="text-lg sm:text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+              <Scale className="w-5 h-5 sm:w-5.5 sm:h-5.5 text-red-600" />
               Perbandingan Spesifikasi Toyota
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
@@ -1087,8 +1090,44 @@ export default function ChatInterface() {
             </DialogDescription>
           </DialogHeader>
 
-          {/* Comparison Table */}
-          <div className="py-4 overflow-x-auto">
+          {/* Mobile Card Stack View (<640px) */}
+          <div className="block sm:hidden py-3 space-y-4">
+            {compareList.map((car, cIdx) => (
+              <div key={cIdx} className="bg-muted/30 border border-border/60 rounded-xl p-3.5 space-y-2.5">
+                <div className="flex justify-between items-start border-b border-border/40 pb-2">
+                  <h4 className="font-bold text-sm text-foreground">{car.name}</h4>
+                  <span className="font-bold text-xs text-red-600 bg-red-500/10 px-2 py-0.5 rounded-md">{car.price}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Penggerak</span>
+                    <span className="font-semibold">{car.fuelType}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Transmisi</span>
+                    <span className="font-semibold">{car.transmission}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Kapasitas</span>
+                    <span className="font-semibold">{car.capacity}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold block uppercase">Safety TSS</span>
+                    <span className="font-semibold">{car.hasTSS ? "Ada (TSS)" : "Tidak"}</span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-[10px] text-muted-foreground font-semibold block uppercase">BBM (Kota / Tol)</span>
+                    <span className="font-bold text-teal-600 dark:text-teal-400">
+                      {car.bbmKota ? `${car.bbmKota} km/l` : "-"} / {car.bbmTol ? `${car.bbmTol} km/l` : "-"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Comparison Desktop Table (>=640px) */}
+          <div className="hidden sm:block py-4 overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs md:text-sm">
               <thead>
                 <tr className="border-b border-border/60">

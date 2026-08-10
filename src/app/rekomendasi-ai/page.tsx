@@ -36,11 +36,8 @@ export const metadata: Metadata = {
 };
 
 function RekomendasiAI() {
-  return (
-    <div className="h-auto min-h-screen w-full">
-      <ChatInterface />
-    </div>
-  );
+  return <ChatInterface />;
 }
 
 export default RekomendasiAI;
+
