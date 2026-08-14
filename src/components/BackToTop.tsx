@@ -2,9 +2,11 @@
 import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { ArrowUp } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 const BackToTopButton = () => {
   const [isVisible, setIsVisible] = useState(false);
+  const pathname = usePathname();
 
   const toggleVisibility = () => {
     if (window.scrollY > 150) {
@@ -27,6 +29,9 @@ const BackToTopButton = () => {
       window.removeEventListener("scroll", toggleVisibility);
     };
   }, []);
+
+  // Hide on Mobil AI page
+  if (pathname === "/rekomendasi-ai") return null;
 
   return (
     <div className="fixed bottom-14 right-4">

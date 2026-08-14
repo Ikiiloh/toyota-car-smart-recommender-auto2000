@@ -3,9 +3,11 @@
 import { motion } from "framer-motion";
 import ContactDialog from "./FormContact";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 const FloatingContact = () => {
   const [isVisible, setIsVisible] = useState(false);
+  const pathname = usePathname();
 
   const toggleVisibility = () => {
     if (window.scrollY > 2) {
@@ -21,6 +23,9 @@ const FloatingContact = () => {
       window.removeEventListener("scroll", toggleVisibility);
     };
   }, []);
+
+  // Hide on Mobil AI page to prevent overlapping chat input
+  if (pathname === "/rekomendasi-ai") return null;
 
   return (
     <div>

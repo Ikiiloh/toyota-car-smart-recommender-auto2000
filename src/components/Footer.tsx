@@ -1,9 +1,18 @@
+"use client";
+
+import { usePathname } from "next/navigation";
 import { InstagramIcon } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
-import ContactDialog from "./FormContact";
 
 const Footer = () => {
+  const pathname = usePathname();
+
+  // Hide footer completely on Mobil AI page
+  if (pathname === "/rekomendasi-ai") {
+    return null;
+  }
+
   const officeHours = [
     "Senin - Jumat : 08:00 - 17:00",
     "Sabtu : 08:00 - 16:00",
