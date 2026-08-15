@@ -205,16 +205,46 @@ function getSpecificModels(teks: string, modelNames: string[]): string[] {
 }
 
 function parseQueryModels(teks: string, modelNames: string[]): { included: string[], excluded: string[] } {
-  const parts = teks.split(/(?:selain|kecuali|exclude)/i);
-  if (parts.length < 2) {
-    return {
-      included: getSpecificModels(teks, modelNames),
-      excluded: []
-    };
+  // 1. Deteksi SEMUA model yang disebut di seluruh teks
+  const allModels = getSpecificModels(teks, modelNames);
+
+  if (allModels.length === 0) {
+    return { included: [], excluded: [] };
   }
+
+  const teksLower = teks.toLowerCase();
+  const excluded = new Set<string>();
+
+  // 2. Cari posisi setiap kata pengecualian ("selain", "kecuali", "exclude", "bukan")
+  const exclusionRegex = /\b(?:selain|kecuali|exclude|bukan)\b/gi;
+  let match;
+
+  while ((match = exclusionRegex.exec(teksLower)) !== null) {
+    const afterPos = match.index + match[0].length;
+    const textAfter = teksLower.substring(afterPos);
+
+    for (const model of allModels) {
+      const modelPos = textAfter.indexOf(model);
+      // Model harus muncul dalam 80 karakter setelah kata pengecualian
+      if (modelPos !== -1 && modelPos < 80) {
+        // 3. Cek apakah ada kata konteks inklusif antara kata pengecualian dan nama model.
+        //    Jika ada kata seperti "untuk", "mobil", "unit", "tipe", "varian", "harga", "di" 
+        //    di antara keduanya, berarti model tersebut BUKAN target pengecualian.
+        //    Contoh: "selain putih hitam **untuk mobil** Agya" → Agya BUKAN excluded
+        //    Contoh: "selain **Agya** ada apa lagi?" → Agya ADALAH excluded
+        const textBetween = textAfter.substring(0, modelPos);
+        const hasInclusionContext = /\b(?:untuk|mobil|unit|tipe|varian|model|di|harga)\b/i.test(textBetween);
+
+        if (!hasInclusionContext) {
+          excluded.add(model);
+        }
+      }
+    }
+  }
+
   return {
-    included: getSpecificModels(parts[0], modelNames),
-    excluded: getSpecificModels(parts.slice(1).join(" "), modelNames)
+    included: allModels.filter(m => !excluded.has(m)),
+    excluded: Array.from(excluded)
   };
 }
 
