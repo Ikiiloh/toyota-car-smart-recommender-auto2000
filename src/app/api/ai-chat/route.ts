@@ -350,9 +350,9 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
          - Jika kustomer minta "wireless charger" / "cas nirkabel", masukkan ["wireless charger", "cas nirkabel"].
          - DILARANG memasukkan nama model mobil ke sini.
       - "exclude_keywords": Array of strings. Jika kustomer minta "TIDAK MAU X" atau "SELAIN X". Selain itu, jika kustomer mencari mobil penumpang / harian / perkotaan / keluarga, OTOMATIS masukkan kata-kata komersial ke exclude_keywords (contoh: ["truk", "pick up", "pickup", "cab-chs", "komersial"]).
-      - "budget_min": Angka murni (number) batas BAWAH harga dalam Rupiah. Jika kustomer bilang "di atas 200 juta", isi 200000000. Jika tidak ada batas bawah, isi null.
-      - "budget_max": Angka murni (number) batas ATAS harga dalam Rupiah. Jika kustomer bilang "di bawah 300 juta" atau "budget 300 juta", isi 300000000. Jika tidak ada batas atas, isi null.
-      - CATATAN KHUSUS: Jika kustomer bilang "200 jutaan", artinya budget_min = 200000000 dan budget_max = 299999999.
+      - "budget_min": Angka murni (number) batas BAWAH harga dalam Rupiah. HANYA isi jika kustomer EKSPLISIT menyebut batas minimal ("di atas 200 juta", "minimal 300 juta", "paling murah 250 juta"). Jika tidak ada batas bawah eksplisit, WAJIB isi null.
+      - "budget_max": Angka murni (number) batas ATAS harga dalam Rupiah. Jika kustomer bilang "di bawah 300 juta", "maksimal 300 juta", atau "budget 300 juta", isi 300000000. Jika kustomer bilang "budget 400 jutaan" atau "kisaran 400 juta", isi batas atas 499999999 (budget_min tetap null agar mobil di bawah budget tetap masuk rekomendasi). Jika tidak ada batas atas, isi null.
+      - CATATAN KHUSUS BUDGET KISARAN: Jika kustomer bilang "budget X jutaan" (misal "budget 400 jutaan"), artinya kustomer mampu membeli mobil hingga kelas 400-an juta, maka set budget_max = 499999999 dan budget_min = null (JANGAN memasang budget_min kaku kecuali diminta).
       - "price_sort": "termurah" (HANYA JIKA kustomer EKSPLISIT menggunakan kata "termurah", "paling murah", "terendah" dalam pesan kustomer), "termahal" (HANYA JIKA kustomer EKSPLISIT menggunakan kata "termahal", "paling mahal", "tertinggi"), "keduanya" (HANYA JIKA kustomer EKSPLISIT meminta rentang harga termurah DAN termahal sekaligus). JIKA KUSTOMER TIDAK MENGGUNAKAN KATA "TERMURAH" ATAU "TERMAHAL" DI PESANNYA, WAJIB ISI null!
       - "engine_type": "bensin" (hanya bensin murni), "hybrid" (hanya hybrid/HEV), "ev" (hanya listrik murni/BEV), "diesel" (hanya mesin diesel), atau null (bebas).
       - "seats": 5, 7, 16 (untuk minibus), atau null.
@@ -367,6 +367,8 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
       - "MB" / "Microbus" / "Motorized Business" / "Mobile Business" = sasis untuk modifikasi angkutan penumpang atau model komersial bergerak.
       - "DSL" = mesin Diesel. Varian tanpa "DSL" berarti Bensin.
       - "PICK UP" (tanpa CAB-CHS) = mobil sudah utuh lengkap dengan bak belakang bawaan pabrik.
+      - Jika kustomer mencari mobil "mewah" / "eksekutif" / "pejabat" / "luxury" / "VIP" / "kelas atas" / "tidak masalah harga mahal", tulis ulang semantic_query menjadi: "MPV luxury premium sedan eksekutif Alphard Vellfire Land Cruiser Camry Crown".
+      - Jika kustomer mencari "SUV kompak" / "compact SUV" / "crossover", tulis ulang semantic_query menjadi: "Compact SUV Crossover Yaris Cross Raize".
       - Jika kustomer menanyakan istilah-istilah di atas, tulis ulang semantic_query menggunakan sinonim yang lebih kaya agar pencarian vektor lebih akurat (misal: "cab chassis sasis kosong karoseri boks komersial").
     `;
 
@@ -437,7 +439,7 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
 function calculateBM25Score(
   query: string,
   docText: string,
-  avgDocLen: number = 50,
+  avgDocLen: number,
   k1: number = 1.2,
   b: number = 0.75
 ): number {
@@ -460,11 +462,13 @@ function calculateBM25Score(
     docFreqMap[t] = (docFreqMap[t] || 0) + 1;
   }
 
+  const effectiveAvgDocLen = avgDocLen > 0 ? avgDocLen : 1;
+
   let score = 0;
   for (const token of queryTokens) {
     const tf = docFreqMap[token] || 0;
     if (tf > 0) {
-      const tfNorm = (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (docLen / avgDocLen)));
+      const tfNorm = (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * (docLen / effectiveAvgDocLen)));
       score += tfNorm;
     }
   }
@@ -475,13 +479,29 @@ function calculateBM25Score(
 function combineRRF(candidates: any[], queryText: string): any[] {
   if (!candidates || candidates.length === 0) return [];
 
+  const tokenize = (text: string) =>
+    text
+      .toLowerCase()
+      .replace(/[^\w\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 1);
+
+  // Pre-extract candidate texts
+  const candidateTexts = candidates.map((row) =>
+    `${row.tipe_mobil || ''} ${row.varian || ''} ${typeof row.spesifikasi_detail === 'string' ? row.spesifikasi_detail : JSON.stringify(row.spesifikasi_detail || '')}`
+  );
+
+  // Calculate dynamic average document length across candidate corpus
+  const totalTokens = candidateTexts.reduce((acc, text) => acc + tokenize(text).length, 0);
+  const dynamicAvgDocLen = totalTokens > 0 ? totalTokens / candidateTexts.length : 1;
+
   // Sort by Vector distance ascending (rank 1 is smallest distance)
   const vectorSorted = [...candidates].sort((a, b) => (parseFloat(a.jarak) || 0) - (parseFloat(b.jarak) || 0));
 
-  // Compute BM25 scores
-  const withBM25 = candidates.map((row) => {
-    const fullText = `${row.tipe_mobil || ''} ${row.varian || ''} ${typeof row.spesifikasi_detail === 'string' ? row.spesifikasi_detail : JSON.stringify(row.spesifikasi_detail || '')}`;
-    const bm25Score = calculateBM25Score(queryText, fullText);
+  // Compute BM25 scores with dynamic avgDocLen
+  const withBM25 = candidates.map((row, idx) => {
+    const fullText = candidateTexts[idx];
+    const bm25Score = calculateBM25Score(queryText, fullText, dynamicAvgDocLen);
     return { row, bm25Score };
   });
 
@@ -918,6 +938,12 @@ async function cariKonteksHybrid(
       combinedCandidates = combineRRF(combinedCandidates, fullSearchQuery);
       console.log(`[RAG Hybrid RRF] Re-ranked ${combinedCandidates.length} candidates using BM25 + Vector RRF.`);
 
+      // Jika kustomer meminta mobil irit BBM, urutkan kembali berdasarkan konsumsi BBM kota tertinggi
+      if (queryIrit) {
+        combinedCandidates.sort((a, b) => parseFloat(b.bbm_kota || "0") - parseFloat(a.bbm_kota || "0"));
+        console.log(`[RAG Hybrid Sort] Sorted candidate pool by bbm_kota DESC (paling irit di kota).`);
+      }
+
       // Jika kustomer meminta pengurutan harga pada pencarian ber-fitur (misal: "mobil kamera 360 termurah")
       if (queryHarga === "termurah") {
         combinedCandidates.sort((a, b) => parseFloat(a.harga) - parseFloat(b.harga));
@@ -1029,6 +1055,7 @@ async function tanyaGemini(
        - Jika unit tidak ditemukan / database kosong, katakan dengan jujur bahwa unit belum tersedia di database resmi kami saat ini, lalu rekomendasikan alternatif model Toyota sekelas yang tersedia.
     2. LOGIKA REKOMENDASI & FITUR SPESIFIK:
        - Jika kustomer mencari fitur spesifik (misal: sunroof, panoramic roof, moonroof, TSS, captain seat, atau mobil irit): TAMPILKAN LANGSUNG varian di <data_database> yang MEMILIKI fitur tersebut beserta harganya sebagai rekomendasi utama. Dilarang menampilkan harga varian terendah yang tidak memiliki fitur tersebut.
+       - Untuk pertanyaan rekomendasi kategori atau segmen (misal: SUV, MPV, Sedan, Mobil Keluarga, Mobil Mewah, City Car): TAMPILKAN variasi pilihan model mobil yang BERBEDA yang tersedia di <data_database> (jangan hanya menampilkan varian dari 1 model saja). Jika ada model sekelas yang harganya lebih terjangkau atau variasi segmen yang relevan (misal Raize/Rush untuk SUV kompak), sebutkan juga sebagai opsi alternatif.
        - PERHATIKAN PEMISAHAN SPESIFIKASI ATAP KACA: Sunroof (kaca yang dapat dibuka/tilt), Moonroof (kaca yang dapat digeser), dan Panoramic Roof / Panoramic Glass Roof (atap kaca lebar panoramic) adalah fitur yang BERBEDA secara fungsi dan spesifikasi. Sebutkan tipe atap kaca persis sesuai data di <data_database> dan DILARANG menyebut panoramic/moonroof sebagai sunroof jika tidak tercantum sebagai sunroof di database.
        - Untuk keiritan BBM, gunakan acuan angka km/l di database (semakin tinggi angka km/l = semakin irit).
        - Untuk kustomer yang bertanya umum tentang suatu model (misal: "Berapa harga Avanza?"), sebutkan rentang harga dari varian terendah hingga varian tertinggi di database.
