@@ -8,6 +8,7 @@ import Hero from "./Hero";
 import ChatSidebar, { HistoryItem } from "./ChatSidebar";
 import CarCompareDrawer, { CarDetail } from "./CarCompareDrawer";
 import MessageActions from "./MessageActions";
+import ThemeToggler from "@/components/ThemeToggle";
 import { useMobilStore } from "@/lib/store/useCarStore";
 import {
   Dialog,
@@ -27,6 +28,10 @@ import {
   X,
   Compass,
   Menu,
+  Sparkles,
+  Car,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 interface Message {
@@ -216,32 +221,13 @@ export default function ChatInterface() {
   const [compareList, setCompareList] = useState<CarDetail[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [expandedCarCards, setExpandedCarCards] = useState<Record<number, boolean>>({});
 
-  const [topicStartIndex, setTopicStartIndex] = useState(1);
-  const [respondedTopicMessages, setRespondedTopicMessages] = useState<Record<number, 'yes' | 'no'>>({});
-
-  const handleTopicChoice = (idx: number, choice: 'yes' | 'no') => {
-    if (choice === 'no') {
-      const newMsgIndex = messages.length;
-      setRespondedTopicMessages((prev) => ({
-        ...prev,
-        [idx]: 'no',
-        [newMsgIndex]: 'no',
-      }));
-      setTopicStartIndex(newMsgIndex + 1);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "✨ **Topik Baru Dimulai**\n\nPencarian sebelumnya telah diarsipkan dari memori. Silakan tanyakan kriteria atau unit Toyota lainnya tanpa terpengaruh konteks di atas."
-        }
-      ]);
-    } else {
-      setRespondedTopicMessages((prev) => ({
-        ...prev,
-        [idx]: 'yes',
-      }));
-    }
+  const toggleCarCards = (idx: number) => {
+    setExpandedCarCards((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
   };
 
   const { cars: storeCars, fetchCars } = useMobilStore();
@@ -253,17 +239,32 @@ export default function ChatInterface() {
   }, [storeCars.length, fetchCars]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const isZeroState = messages.length <= 1;
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  useEffect(() => {
+    if (messages.length > 1) {
+      const lastIdx = messages.length - 1;
+      const lastMsg = messages[lastIdx];
+      // Jika pesan terakhir adalah balasan assistant, scroll ke bagian ATAS pesan assistant tersebut
+      if (lastMsg.role === "assistant") {
+        setTimeout(() => {
+          messageRefs.current[lastIdx]?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 100);
+      } else {
+        // Jika user baru mengirim pesan, scroll ke bawah agar terlihat loading/pesan user
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
+    }
+  }, [messages]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isLoading]);
+    if (isLoading) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [isLoading]);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -398,17 +399,6 @@ export default function ChatInterface() {
     const text = overrideText || input;
     if (!text.trim() || isLoading) return;
 
-    // Otomatis hilangkan card konfirmasi topik pada pesan sebelumnya saat mengirim pertanyaan baru / menanyakan unit
-    setRespondedTopicMessages((prev) => {
-      const updated = { ...prev };
-      messages.forEach((_, idx) => {
-        if (!updated[idx]) {
-          updated[idx] = 'yes';
-        }
-      });
-      return updated;
-    });
-
     addQueryToHistory(text);
 
     const newMessages: Message[] = [...messages, { role: "user", content: text }];
@@ -416,7 +406,7 @@ export default function ChatInterface() {
     setInput("");
     setIsLoading(true);
 
-    const chatHistory = newMessages.slice(topicStartIndex).map((msg) => ({
+    const chatHistory = newMessages.slice(1).map((msg) => ({
       role: msg.role,
       content: msg.content,
     }));
@@ -488,8 +478,6 @@ export default function ChatInterface() {
     setContextData({});
     setCompareList([]);
     setInput("");
-    setTopicStartIndex(1);
-    setRespondedTopicMessages({});
   };
 
   const toggleCompare = (car: CarDetail) => {
@@ -512,7 +500,7 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-56px)] sm:h-[calc(100dvh-64px)] w-full px-2 sm:px-4 md:px-6 max-w-5xl mx-auto relative overflow-hidden bg-background text-foreground">
+    <div className="flex flex-col h-[calc(100dvh-68px)] sm:h-[calc(100dvh-64px)] w-full px-2 sm:px-4 md:px-6 max-w-5xl mx-auto relative overflow-hidden bg-background text-foreground">
       {/* Slide-over Mobile & Desktop Sidebar with LocalStorage User History */}
       <ChatSidebar
         isOpen={isSidebarOpen}
@@ -571,17 +559,20 @@ export default function ChatInterface() {
           </div>
         </div>
 
-        {!isZeroState && (
-          <Button
-            onClick={resetChat}
-            variant="outline"
-            size="sm"
-            className="rounded-lg border-border text-[11px] font-semibold gap-1.5 h-8 px-2.5 hover:bg-muted text-muted-foreground hover:text-foreground active:scale-95 transition-all"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Sesi Baru</span>
-          </Button>
-        )}
+        <div className="flex items-center gap-1.5">
+          {!isZeroState && (
+            <Button
+              onClick={resetChat}
+              variant="outline"
+              size="sm"
+              className="rounded-lg border-border text-[11px] font-semibold gap-1.5 h-8 px-2 sm:px-2.5 hover:bg-muted text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span className="hidden xs:inline sm:inline">Sesi Baru</span>
+            </Button>
+          )}
+          <ThemeToggler />
+        </div>
       </header>
 
       {/* Scrollable Main Chat Area */}
@@ -598,6 +589,9 @@ export default function ChatInterface() {
               return (
                 <div
                   key={idx}
+                  ref={(el) => {
+                    messageRefs.current[idx] = el;
+                  }}
                   className={`flex gap-2.5 sm:gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"} animate-fade-in`}
                 >
                   {msg.role === "assistant" && (
@@ -634,125 +628,120 @@ export default function ChatInterface() {
                       )}
                     </div>
 
-                    {/* Bento Recommendation Grid for Cars (2 cards per row on Mobile & Desktop) */}
+                    {/* Collapsible Bento Recommendation Grid for Cars (Option 3 with 2-column grid) */}
                     {msg.role === "assistant" && cars.length > 0 && (
                       <div className="w-full space-y-2 pt-1">
-                        <div className="grid grid-cols-2 gap-1.5 sm:gap-3">
-                          {cars.map((car, carIdx) => {
-                            const isComparing = compareList.some((item) => item.name === car.name);
+                        <button
+                          onClick={() => toggleCarCards(idx)}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-card hover:bg-muted border border-border text-xs font-semibold text-foreground hover:text-red-600 transition-all active:scale-95 shadow-2xs group"
+                        >
+                          <div className="w-5 h-5 rounded-md bg-red-500/10 flex items-center justify-center text-red-600 group-hover:bg-red-600 group-hover:text-white transition-colors">
+                            <Car className="w-3.5 h-3.5" />
+                          </div>
+                          <span>
+                            {expandedCarCards[idx]
+                              ? `Sembunyikan Visual Unit (${cars.length})`
+                              : `Lihat Kartu Unit Terkait (${cars.length} Mobil)`}
+                          </span>
+                          {expandedCarCards[idx] ? (
+                            <ChevronUp className="w-3.5 h-3.5 text-muted-foreground ml-0.5" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 text-muted-foreground ml-0.5" />
+                          )}
+                        </button>
 
-                            return (
-                              <div
-                                key={carIdx}
-                                className="group flex flex-col bg-card border border-border rounded-lg sm:rounded-xl overflow-hidden hover:border-red-500/60 transition-all"
-                              >
-                                {/* Header / Car Image View */}
-                                <div className="relative h-20 sm:h-36 bg-muted/30 flex items-center justify-center overflow-hidden border-b border-border/50">
-                                  {car.image ? (
-                                    <img
-                                      src={car.image}
-                                      alt={car.name}
-                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                    />
-                                  ) : (
-                                    <CarSilhouette name={car.name} />
-                                  )}
+                        {expandedCarCards[idx] && (
+                          <div className="grid grid-cols-2 gap-1.5 sm:gap-3 pt-1 animate-fade-in w-full">
+                            {cars.map((car, carIdx) => {
+                              const isComparing = compareList.some((item) => item.name === car.name);
 
-                                  {/* Spec Pills */}
-                                  <div className="absolute top-1 right-1 sm:top-2 sm:right-2 flex flex-wrap gap-0.5 sm:gap-1 items-end justify-end">
-                                    {car.hasTSS && (
-                                      <span className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded bg-teal-500/10 border border-teal-500/20 text-teal-600 dark:text-teal-400 text-[7px] sm:text-[8px] font-bold uppercase">
-                                        TSS
-                                      </span>
+                              return (
+                                <div
+                                  key={carIdx}
+                                  className="group flex flex-col bg-card border border-border rounded-lg sm:rounded-xl overflow-hidden hover:border-red-500/60 transition-all shadow-xs"
+                                >
+                                  {/* Header / Car Image View */}
+                                  <div className="relative h-20 sm:h-36 bg-muted/30 flex items-center justify-center overflow-hidden border-b border-border/50">
+                                    {car.image ? (
+                                      <img
+                                        src={car.image}
+                                        alt={car.name}
+                                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                      />
+                                    ) : (
+                                      <CarSilhouette name={car.name} />
                                     )}
-                                    {car.fuelType === "Hybrid" && (
-                                      <span className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-[7px] sm:text-[8px] font-bold uppercase">
-                                        HEV
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
 
-                                {/* Car Details & Action Buttons */}
-                                <div className="p-2 sm:p-3 flex-1 flex flex-col space-y-1.5">
-                                  <div>
-                                    <h4 className="font-bold text-[11px] sm:text-sm text-foreground line-clamp-1 group-hover:text-red-600 transition-colors leading-tight">
-                                      {car.name}
-                                    </h4>
-                                    <p className="text-[10px] sm:text-xs font-bold text-red-600 mt-0.5 truncate">
-                                      {car.price}
-                                    </p>
-                                  </div>
-
-                                  <div className="grid grid-cols-2 gap-0.5 text-[9px] sm:text-[10px] text-muted-foreground border-t border-b border-border/40 py-1 my-auto leading-tight">
-                                    <div className="truncate">BBM: <span className="font-medium text-foreground">{car.bbmKota ? `${car.bbmKota} km/l` : "Bensin"}</span></div>
-                                    <div className="truncate">Trans: <span className="font-medium text-foreground">{car.transmission}</span></div>
-                                    <div className="col-span-2 truncate">Kapasitas: <span className="font-medium text-foreground">{car.capacity}</span></div>
-                                  </div>
-
-                                  <div className="flex gap-1 pt-0.5">
-                                    <Button
-                                      onClick={() => setActiveCarDetail(car)}
-                                      variant="outline"
-                                      size="sm"
-                                      className="flex-1 h-7 sm:h-8 text-[10px] sm:text-xs font-semibold rounded-md sm:rounded-lg hover:bg-muted border-border gap-0.5 px-1 active:scale-95"
-                                    >
-                                      <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                      Detail
-                                    </Button>
-                                    <Button
-                                      onClick={() => toggleCompare(car)}
-                                      variant={isComparing ? "secondary" : "default"}
-                                      size="sm"
-                                      className={`flex-1 h-7 sm:h-8 text-[10px] sm:text-xs font-semibold rounded-md sm:rounded-lg gap-0.5 px-1 active:scale-95 ${isComparing
-                                          ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20"
-                                          : "bg-red-600 hover:bg-red-700 text-white"
-                                        }`}
-                                    >
-                                      {isComparing ? (
-                                        <>
-                                          <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                          Dipilih
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Scale className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                                          Banding
-                                        </>
+                                    {/* Spec Pills */}
+                                    <div className="absolute top-1 right-1 sm:top-2 sm:right-2 flex flex-wrap gap-0.5 sm:gap-1 items-end justify-end">
+                                      {car.hasTSS && (
+                                        <span className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded bg-teal-500/10 border border-teal-500/20 text-teal-600 dark:text-teal-400 text-[7px] sm:text-[8px] font-bold uppercase">
+                                          TSS
+                                        </span>
                                       )}
-                                    </Button>
+                                      {car.fuelType === "Hybrid" && (
+                                        <span className="px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded bg-green-500/10 border border-green-500/20 text-green-600 dark:text-green-400 text-[7px] sm:text-[8px] font-bold uppercase">
+                                          HEV
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Car Details & Action Buttons */}
+                                  <div className="p-2 sm:p-3 flex-1 flex flex-col space-y-1.5">
+                                    <div>
+                                      <h4 className="font-bold text-[11px] sm:text-sm text-foreground line-clamp-1 group-hover:text-red-600 transition-colors leading-tight">
+                                        {car.name}
+                                      </h4>
+                                      <p className="text-[10px] sm:text-xs font-bold text-red-600 mt-0.5 truncate">
+                                        {car.price}
+                                      </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-0.5 text-[9px] sm:text-[10px] text-muted-foreground border-t border-b border-border/40 py-1 my-auto leading-tight">
+                                      <div className="truncate">BBM: <span className="font-medium text-foreground">{car.bbmKota ? `${car.bbmKota} km/l` : "Bensin"}</span></div>
+                                      <div className="truncate">Trans: <span className="font-medium text-foreground">{car.transmission}</span></div>
+                                      <div className="col-span-2 truncate">Kapasitas: <span className="font-medium text-foreground">{car.capacity}</span></div>
+                                    </div>
+
+                                    <div className="flex gap-1 pt-0.5">
+                                      <Button
+                                        onClick={() => setActiveCarDetail(car)}
+                                        variant="outline"
+                                        size="sm"
+                                        className="flex-1 h-7 sm:h-8 text-[10px] sm:text-xs font-semibold rounded-md sm:rounded-lg hover:bg-muted border-border gap-0.5 px-1 active:scale-95"
+                                      >
+                                        <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                        Detail
+                                      </Button>
+                                      <Button
+                                        onClick={() => toggleCompare(car)}
+                                        variant={isComparing ? "secondary" : "default"}
+                                        size="sm"
+                                        className={`flex-1 h-7 sm:h-8 text-[10px] sm:text-xs font-semibold rounded-md sm:rounded-lg gap-0.5 px-1 active:scale-95 ${isComparing
+                                            ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20"
+                                            : "bg-red-600 hover:bg-red-700 text-white"
+                                          }`}
+                                      >
+                                        {isComparing ? (
+                                          <>
+                                            <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                            Dipilih
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Scale className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                            Banding
+                                          </>
+                                        )}
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Interactive Continuation / Topic Approval Card */}
-                    {msg.role === "assistant" && cars.length > 0 && !respondedTopicMessages[idx] && (
-                      <div className="p-3 bg-muted/40 border border-border rounded-xl space-y-2 animate-fade-in w-full mt-2">
-                        <p className="text-xs font-semibold text-foreground text-center sm:text-left">
-                          Apakah Anda ingin melanjutkan pencarian berdasarkan rekomendasi di atas?
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => handleTopicChoice(idx, 'yes')}
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 h-8 text-xs font-semibold rounded-lg border-border hover:bg-muted"
-                          >
-                            Ya, Lanjutkan
-                          </Button>
-                          <Button
-                            onClick={() => handleTopicChoice(idx, 'no')}
-                            size="sm"
-                            className="flex-1 h-8 text-xs font-semibold rounded-lg bg-red-600 hover:bg-red-700 text-white"
-                          >
-                            Tidak, Topik Baru
-                          </Button>
-                        </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -784,7 +773,7 @@ export default function ChatInterface() {
 
       {/* Floating Compare Action Trigger Bar */}
       {compareList.length > 0 && (
-        <div className="fixed bottom-[130px] sm:bottom-16 left-1/2 -translate-x-1/2 z-40 w-[92%] max-w-sm bg-card border border-border shadow-lg rounded-xl p-2.5 flex items-center justify-between gap-2 backdrop-blur-md">
+        <div className="fixed bottom-20 sm:bottom-16 left-1/2 -translate-x-1/2 z-40 w-[94%] max-w-sm bg-card border border-border shadow-lg rounded-xl p-2.5 flex items-center justify-between gap-2 backdrop-blur-md animate-fade-in">
           <div className="flex items-center gap-2 overflow-hidden">
             <span className="text-xs font-bold text-foreground flex-shrink-0">
               Bandingkan ({compareList.length}/3)
@@ -816,7 +805,33 @@ export default function ChatInterface() {
       )}
 
       {/* Sticky Bottom Floating Entry Query Input Capsule */}
-      <div className="flex-shrink-0 sticky bottom-0 bg-background border-t border-border pt-2 pb-[68px] sm:pb-3 z-30">
+      <div className="flex-shrink-0 sticky bottom-0 bg-background border-t border-border pt-1.5 pb-2.5 sm:pb-3 z-30 space-y-1.5">
+        {/* Quick Keyword Chips */}
+        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none max-w-4xl mx-auto py-0.5 px-0.5">
+          <span className="text-[10px] font-bold text-muted-foreground whitespace-nowrap flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-red-600" />
+            Pencarian Cepat:
+          </span>
+          {[
+            { label: "Hybrid Paling Irit", prompt: "Mobil Toyota apa yang paling irit bahan bakar untuk penggunaan dalam kota?" },
+            { label: "7-Seater Keluarga", prompt: "Rekomendasikan mobil keluarga 7 penumpang yang nyaman dan lega" },
+            { label: "Budget 400 Juta", prompt: "Saya punya budget 400 jutaan, cari SUV kompak yang modern dan cocok untuk anak muda" },
+            { label: "Fortuner TSS", prompt: "Apa saja fitur keselamatan Toyota Safety Sense pada Fortuner tipe VRZ TSS?" },
+            { label: "Mobil Off-Road", prompt: "Saya butuh mobil untuk off-road dan medan berat, ada rekomendasi?" },
+            { label: "Hilux Usaha", prompt: "Info harga OTR Hilux Rangga Pick Up untuk operasional usaha di Rantauprapat" },
+          ].map((chip, chipIdx) => (
+            <button
+              key={chipIdx}
+              onClick={() => sendMessage(chip.prompt)}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-muted/60 hover:bg-red-500/10 border border-border hover:border-red-500/40 text-[10px] text-muted-foreground hover:text-red-600 font-medium whitespace-nowrap transition-all active:scale-95 flex-shrink-0"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-red-600 flex-shrink-0" />
+              <span>{chip.label}</span>
+            </button>
+          ))}
+        </div>
+
         <div className="flex items-end gap-2 max-w-4xl mx-auto">
           <div className="flex-1 relative bg-card border border-border rounded-xl p-1.5 focus-within:border-red-500 transition-colors shadow-xs">
             <textarea
@@ -824,7 +839,7 @@ export default function ChatInterface() {
               value={input}
               onChange={handleTextareaInput}
               onKeyDown={handleKeyDown}
-              placeholder="Ketik kriteria atau pertanyaan Anda..."
+              placeholder="Ketik kriteria atau pertanyaan Anda (misal: 'Mobil hybrid keluarga budget 400 jt')..."
               rows={1}
               className="w-full resize-none bg-transparent border-0 px-2 py-1.5 text-xs sm:text-sm focus:outline-none placeholder:text-muted-foreground/50 text-foreground min-h-[38px] max-h-[100px] scrollbar-none"
               disabled={isLoading}

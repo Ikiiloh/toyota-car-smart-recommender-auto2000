@@ -36,9 +36,11 @@ export function Navigation() {
   return (
     <>
       {/* Mobile Top Theme Toggler */}
-      <div className="sm:hidden fixed top-1 right-1 z-50 bg-background/30 rounded-full backdrop-blur-lg">
-        <ThemeToggler />
-      </div>
+      {pathname !== "/rekomendasi-ai" && (
+        <div className="sm:hidden fixed top-1 right-1 z-50 bg-background/30 rounded-full backdrop-blur-lg">
+          <ThemeToggler />
+        </div>
+      )}
       {/* Navbar untuk layar besar */}
       <nav className="hidden sm:flex sticky top-0 z-50 max-w-7xl mx-auto px-4 md:px-8 py-3 justify-between items-center bg-background/30 backdrop-blur-lg">
         <Link href={"/"}>
@@ -118,7 +120,7 @@ export function Navigation() {
       </motion.div>
 
       {/* Padding for fixed elements */}
-      <div className="sm:hidden h-16" />
+      {pathname !== "/rekomendasi-ai" && <div className="sm:hidden h-16" />}
     </>
   );
 }
