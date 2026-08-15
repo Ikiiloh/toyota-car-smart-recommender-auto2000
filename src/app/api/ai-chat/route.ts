@@ -225,17 +225,16 @@ function parseQueryModels(teks: string, modelNames: string[]): { included: strin
 
     for (const model of allModels) {
       const modelPos = textAfter.indexOf(model);
-      // Model harus muncul dalam 80 karakter setelah kata pengecualian
+      // Model harus muncul dalam jarak wajar setelah kata pengecualian (dalam 80 karakter)
       if (modelPos !== -1 && modelPos < 80) {
-        // 3. Cek apakah ada kata konteks inklusif antara kata pengecualian dan nama model.
-        //    Jika ada kata seperti "untuk", "mobil", "unit", "tipe", "varian", "harga", "di" 
-        //    di antara keduanya, berarti model tersebut BUKAN target pengecualian.
-        //    Contoh: "selain putih hitam **untuk mobil** Agya" → Agya BUKAN excluded
-        //    Contoh: "selain **Agya** ada apa lagi?" → Agya ADALAH excluded
-        const textBetween = textAfter.substring(0, modelPos);
-        const hasInclusionContext = /\b(?:untuk|mobil|unit|tipe|varian|model|di|harga)\b/i.test(textBetween);
+        const textBetween = textAfter.substring(0, modelPos).trim();
 
-        if (!hasInclusionContext) {
+        // Cek apakah ada preposisi tujuan/kepemilikan (seperti "untuk", "buat", "pada", "bagi")
+        // Contoh: "selain putih dan hitam **untuk** mobil Agya" -> Agya adalah target atribut (INCLUDED)
+        // Contoh: "selain **mobil** Agya apa lagi yang muat 5 orang?" -> Agya adalah model yang dikecualikan (EXCLUDED)
+        const hasTargetPreposition = /\b(?:untuk|buat|pada|bagi)\b/i.test(textBetween);
+
+        if (!hasTargetPreposition) {
           excluded.add(model);
         }
       }
@@ -683,17 +682,23 @@ async function cariKonteksHybrid(
   // Deteksi apakah user menanyakan model mobil spesifik (dari pesan asli + query perluasan)
   const textForModelDetect = originalMessage + " " + expandedQuery;
   const { included: models, excluded } = parseQueryModels(textForModelDetect, modelNames);
-  const isSpecificModel = models.length > 0;
+  const allExcludes = [...new Set([...excluded, ...(selfQuery.exclude_keywords || []).map((k: string) => k.toLowerCase().trim())])];
+
+  // Pastikan model yang masuk daftar exclude TIDAK dimasukkan ke daftar include (mencegah kontradiksi LIKE '%x%' AND NOT LIKE '%x%')
+  const cleanModels = models.filter((m) => {
+    const mLower = m.toLowerCase().trim();
+    return !allExcludes.some((ex) => ex === mLower || mLower.includes(ex) || ex.includes(mLower));
+  });
+  const isSpecificModel = cleanModels.length > 0;
 
   let modelFilter = "";
   if (isSpecificModel) {
-    const conditions = models.map((m) => `LOWER(tipe_mobil) LIKE '%${m}%'`).join(" OR ");
+    const conditions = cleanModels.map((m) => `LOWER(tipe_mobil) LIKE '%${m}%'`).join(" OR ");
     modelFilter = ` AND (${conditions})`;
   }
 
   // Build model exclusion clause
   let excludeFilter = "";
-  const allExcludes = [...new Set([...excluded, ...(selfQuery.exclude_keywords || [])])];
   if (allExcludes.length > 0) {
     const conditions = allExcludes.map((m) => {
       const kw = m.toLowerCase().trim();
