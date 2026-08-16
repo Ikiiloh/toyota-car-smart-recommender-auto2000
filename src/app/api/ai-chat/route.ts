@@ -1104,7 +1104,6 @@ async function tanyaGemini(
   `;
 
   // Kirim riwayat percakapan terbaru (maks 6 pesan) agar Gemini memahami konteks follow-up.
-  // Ini penting agar pertanyaan lanjutan seperti "yang lebih murah dari itu?" bisa dipahami.
   const contents: { role: "user" | "model"; parts: { text: string }[] }[] = [];
 
   if (chatHistory && chatHistory.length > 0) {
@@ -1119,7 +1118,6 @@ async function tanyaGemini(
     }
 
     // Gemini API mensyaratkan pesan pertama harus role "user".
-    // Hapus pesan-pesan "model" di awal jika ada (misal welcome message).
     while (contents.length > 0 && contents[0].role === "model") {
       contents.shift();
     }

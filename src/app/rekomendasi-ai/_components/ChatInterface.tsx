@@ -547,9 +547,6 @@ export default function ChatInterface() {
                 <h1 className="font-bold text-xs sm:text-sm tracking-tight text-foreground">
                   Toyota Smart Recommender
                 </h1>
-                <span className="hidden sm:inline-block px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground font-semibold border border-border">
-                  RAG v2.5
-                </span>
               </div>
               <p className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -607,8 +604,8 @@ export default function ChatInterface() {
                     {/* Message Box */}
                     <div
                       className={`rounded-xl px-3.5 py-3 border text-xs sm:text-sm leading-relaxed ${msg.role === "user"
-                          ? "bg-red-600 border-red-700 text-white rounded-tr-none font-medium"
-                          : "bg-card border-border rounded-tl-none text-foreground"
+                        ? "bg-red-600 border-red-700 text-white rounded-tr-none font-medium"
+                        : "bg-card border-border rounded-tl-none text-foreground"
                         }`}
                     >
                       {msg.role === "assistant" ? (
@@ -719,8 +716,8 @@ export default function ChatInterface() {
                                         variant={isComparing ? "secondary" : "default"}
                                         size="sm"
                                         className={`flex-1 h-7 sm:h-8 text-[10px] sm:text-xs font-semibold rounded-md sm:rounded-lg gap-0.5 px-1 active:scale-95 ${isComparing
-                                            ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20"
-                                            : "bg-red-600 hover:bg-red-700 text-white"
+                                          ? "bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20"
+                                          : "bg-red-600 hover:bg-red-700 text-white"
                                           }`}
                                       >
                                         {isComparing ? (
