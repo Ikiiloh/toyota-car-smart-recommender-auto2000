@@ -73,10 +73,13 @@ export default function CarDetailContent({ mobil }: CarDetailContentProps) {
   const mesinArray: string[] = parseArray(mobil.mesin);
   const torsiArray: string[] = parseArray(mobil.torsi_max);
 
-  const [selectedType, setSelectedType] = useState<string>(typeArray[0] || "");
-  const [selectedTransmisi, setSelectedTransmisi] = useState<string>(
-    transmissionArray[0] || ""
-  );
+  const initialType = typeArray[0] || "";
+  const initialTransRaw = transmissionArray[0]?.trim() || "";
+  const isInitialHev = initialType.toLowerCase().includes("hev") || initialType.toLowerCase().includes("hybrid") || (mobil.nama || "").toLowerCase().includes("hev") || (mobil.nama || "").toLowerCase().includes("hybrid");
+  const initialTransmisi = (!initialTransRaw || initialTransRaw === "-" || initialTransRaw.toLowerCase() === "tidak tersedia" || isInitialHev) ? "e-CVT" : initialTransRaw;
+
+  const [selectedType, setSelectedType] = useState<string>(initialType);
+  const [selectedTransmisi, setSelectedTransmisi] = useState<string>(initialTransmisi);
   const [selectedHarga, setSelectedHarga] = useState<string>(
     hargaArray[0] || ""
   );
@@ -86,8 +89,14 @@ export default function CarDetailContent({ mobil }: CarDetailContentProps) {
     transmisi: string,
     harga: string
   ) => {
+    let finalTrans = transmisi?.trim() || "";
+    const isHev = type.toLowerCase().includes("hev") || type.toLowerCase().includes("hybrid") || (mobil.nama || "").toLowerCase().includes("hev") || (mobil.nama || "").toLowerCase().includes("hybrid");
+    if (!finalTrans || finalTrans === "-" || finalTrans.toLowerCase() === "tidak tersedia" || isHev) {
+      finalTrans = "e-CVT";
+    }
+
     setSelectedType(type);
-    setSelectedTransmisi(transmisi);
+    setSelectedTransmisi(finalTrans);
     setSelectedHarga(harga);
   };
 

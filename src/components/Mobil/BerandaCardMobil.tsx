@@ -27,6 +27,18 @@ export function BerandaCardMobil() {
     return value.toString();
   };
 
+  const parseTransmisi = (value: any, nama?: string, kategori?: any): string => {
+    const raw = parseArrayFirst(value);
+    const namaLower = (nama || "").toLowerCase();
+    const kategoriStr = Array.isArray(kategori) ? kategori.join(" ") : (kategori || "").toString();
+    const kategoriLower = kategoriStr.toLowerCase();
+    const isHev = namaLower.includes("hev") || namaLower.includes("hybrid") || kategoriLower.includes("hybrid") || kategoriLower.includes("hev");
+    if (!raw || raw === "--" || raw === "-" || raw.toLowerCase() === "tidak tersedia" || isHev) {
+      return "e-CVT";
+    }
+    return raw;
+  };
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -80,7 +92,7 @@ export function BerandaCardMobil() {
                 <div className="flex flex-wrap gap-2 text-xs sm:text-sm mt-2">
                   <p className="flex items-center">
                     <Cog className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
-                    {parseArrayFirst(mobil.transmisi)}
+                    {parseTransmisi(mobil.transmisi, mobil.nama, mobil.kategori)}
                   </p>
                   <p className="flex items-center">
                     {parseArrayFirst(mobil.cc)}CC

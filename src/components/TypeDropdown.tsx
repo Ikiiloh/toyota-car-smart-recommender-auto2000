@@ -37,11 +37,19 @@ export function TypeDropdown({
       const index = typeArray.indexOf(selectedType);
       const transmisiOptions = transmissionArray[index]?.split(",") || [];
       const hargaOptions = hargaArray[index]?.split(",") || [];
-      setSelectedTransmisi(transmisiOptions[0] || "Tidak tersedia");
+      
+      let finalTransmisi = transmisiOptions[0]?.trim() || "";
+      const isHev = selectedType.toLowerCase().includes("hev") || selectedType.toLowerCase().includes("hybrid");
+      
+      if (!finalTransmisi || finalTransmisi === "-" || finalTransmisi.toLowerCase() === "tidak tersedia" || isHev) {
+        finalTransmisi = "e-CVT";
+      }
+
+      setSelectedTransmisi(finalTransmisi);
       setSelectedHarga(hargaOptions[0] || "Tidak tersedia");
       onSelectionChange(
         selectedType,
-        transmisiOptions[0] || "",
+        finalTransmisi,
         hargaOptions[0] || ""
       );
     }

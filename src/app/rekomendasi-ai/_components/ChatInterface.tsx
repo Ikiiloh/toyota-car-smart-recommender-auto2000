@@ -344,19 +344,51 @@ export default function ChatInterface() {
           fuelType = "Diesel";
         }
 
-        let transmission = "M/T";
+        let transmission = "e-CVT";
         const specEngineLower = (rawSpecs.engine_transmission || "").toLowerCase();
+        const allSpecStr = JSON.stringify(rawSpecs).toLowerCase();
 
         if (fuelType === "Listrik") {
           transmission = "-";
-        } else if (nameLower.includes("e-cvt") || nameLower.includes("ecvt") || specEngineLower.includes("e-cvt") || specEngineLower.includes("ecvt")) {
+        } else if (
+          fuelType === "Hybrid" ||
+          nameLower.includes("hev") ||
+          nameLower.includes("hybrid") ||
+          allSpecStr.includes("hybrid") ||
+          allSpecStr.includes("hev")
+        ) {
+          // Semua mobil HEV / Hybrid otomatis transmisi e-CVT
           transmission = "e-CVT";
-        } else if (nameLower.includes("cvt") || specEngineLower.includes("cvt")) {
+        } else if (
+          nameLower.includes("e-cvt") ||
+          nameLower.includes("ecvt") ||
+          specEngineLower.includes("e-cvt") ||
+          specEngineLower.includes("ecvt") ||
+          allSpecStr.includes("e-cvt") ||
+          allSpecStr.includes("ecvt")
+        ) {
+          transmission = "e-CVT";
+        } else if (
+          nameLower.includes("cvt") ||
+          specEngineLower.includes("cvt") ||
+          allSpecStr.includes("cvt")
+        ) {
           transmission = "CVT";
-        } else if (nameLower.includes("a/t") || nameLower.includes("at") || nameLower.includes("automatic") || specEngineLower.includes("a/t") || specEngineLower.includes("at") || specEngineLower.includes("automatic")) {
+        } else if (
+          /\ba\/t\b|\bat\b|automatic|otomatis/.test(nameLower) ||
+          /\ba\/t\b|\bat\b|automatic|otomatis/.test(specEngineLower) ||
+          /\ba\/t\b|\bat\b|automatic|otomatis/.test(allSpecStr)
+        ) {
           transmission = "A/T";
-        } else if (nameLower.includes("m/t") || nameLower.includes("mt") || nameLower.includes("manual") || specEngineLower.includes("m/t") || specEngineLower.includes("mt") || specEngineLower.includes("manual")) {
+        } else if (
+          /\bm\/t\b|\bmt\b|manual/.test(nameLower) ||
+          /\bm\/t\b|\bmt\b|manual/.test(specEngineLower) ||
+          /\bm\/t\b|\bmt\b|manual/.test(allSpecStr)
+        ) {
           transmission = "M/T";
+        } else {
+          // Yang tidak dieksplisitkan transmisi apa -> otomatis e-CVT
+          transmission = "e-CVT";
         }
 
         let capacity = "5 Penumpang";

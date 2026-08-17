@@ -28,9 +28,13 @@ const MobilCard: React.FC<MobilCardProps> = ({ mobil, query }) => {
   const kategoriArray = parseArray(mobil.kategori);
 
   const harga = hargaArray[0];
-  const transmisi = transmissionArray[0];
-  const cc = ccArray[0];
+  const transmisiRaw = transmissionArray[0]?.trim() || "";
+  const namaLower = (mobil.nama || "").toLowerCase();
   const kategori = kategoriArray.join(", ");
+  const kategoriLower = kategori.toLowerCase();
+  const isHev = namaLower.includes("hev") || namaLower.includes("hybrid") || kategoriLower.includes("hybrid") || kategoriLower.includes("hev");
+  const transmisi = (!transmisiRaw || transmisiRaw === "-" || transmisiRaw.toLowerCase() === "tidak tersedia" || isHev) ? "e-CVT" : transmisiRaw;
+  const cc = ccArray[0];
 
   const highlightQuery = (text: string, query: string) => {
     if (!query) return text;
