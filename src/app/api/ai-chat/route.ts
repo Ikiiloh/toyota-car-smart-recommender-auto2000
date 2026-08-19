@@ -366,19 +366,47 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
       Gunakan RIWAYAT PERCAKAPAN TERBARU sebagai konteks jika kustomer menggunakan kata ganti ("selain itu", "yang termurah").
       
       ATURAN EKSTRAKSI JSON:
-      - "semantic_query": Tulis ulang pertanyaan menjadi kata kunci pencarian teknis otomotif (string). JANGAN masukkan harga atau syarat mutlak di sini.
+      - "semantic_query": Kalimat deskriptif bersih dari kueri kustomer (string).
+         ATURAN KETAT SEMANTIC_QUERY (ANTI-BIAS & ANTI-HALUSINASI):
+         1. DILARANG KERAS MENGARANG ATAU MENAMBAHKAN NAMA MODEL MOBIL (seperti Alphard, Innova, Avanza, Fortuner, Yaris, Calya, dsb.) KECUALI kustomer secara eksplisit menyebutkan nama model tersebut di pesan atau riwayat chat!
+         2. Hapus seluruh kata sapaan dan basa-basi (contoh: "halo min", "bisa minta rekomendasi", "mau tanya dong", "ada apa saja").
+         3. Hapus seluruh angka harga atau nominal uang (contoh: "300 juta", "400 jutaan", "di bawah 250jt") karena harga sudah ditangani oleh budget_min / budget_max.
+         4. Pertahankan murni deskripsi kebutuhan kustomer: fungsi pemakaian, kenyamanan, kapasitas muatan, efisiensi bahan bakar, tipe transmisi, atau medan jalan (contoh: "mobil keluarga kapasitas banyak penumpang efisien irit bahan bakar perjalanan jauh").
+         5. Jika kustomer menggunakan kata rujukan dari riwayat chat (contoh: riwayat membahas Avanza, lalu kustomer tanya "yang matic berapa?"), baru masukkan nama model dari riwayat ("Avanza transmisi matic").
       - "exact_keywords": Array of strings. Jika kustomer meminta fitur HARGA MATI / spesifik, masukkan kata kunci fiturnya ke sini secara spesifik (DILARANG menggabungkan jenis atap yang berbeda fungsi).
-         ATURAN PEMISAHAN SPESIFIKASI ATAP KACA:
-         - Jika kustomer minta "sunroof", masukkan HANYA ["sunroof"]. (DILARANG memasukkan panoramic atau moonroof).
-         - Jika kustomer minta "panoramic" / "panoramic roof" / "panoramic glass roof", masukkan HANYA ["panoramic roof", "panoramic"]. (DILARANG memasukkan sunroof atau moonroof).
-         - Jika kustomer minta "moonroof", masukkan HANYA ["moonroof"]. (DILARANG memasukkan sunroof atau panoramic).
-         - Jika kustomer minta "atap kaca" (istilah generik), baru boleh memasukkan ["atap kaca", "sunroof", "panoramic", "moonroof"].
-         FITUR LAINNYA:
-         - Jika kustomer minta "captain seat", masukkan ["captain seat"].
-         - Jika kustomer minta "kamera 360", masukkan ["360 camera", "around view", "kamera 360"].
-         - Jika kustomer minta "wireless charger" / "cas nirkabel", masukkan ["wireless charger", "cas nirkabel"].
-         - DILARANG memasukkan nama model mobil ke sini.
-      - "exclude_keywords": Array of strings. Jika kustomer minta "TIDAK MAU X" atau "SELAIN X". Selain itu, jika kustomer mencari mobil penumpang / harian / perkotaan / keluarga, OTOMATIS masukkan kata-kata komersial ke exclude_keywords (contoh: ["truk", "pick up", "pickup", "cab-chs", "komersial"]).
+          PANDUAN KATEGORI FITUR SPESIFIK:
+          - ATAP KACA:
+            * "sunroof" -> ["sunroof", "sun roof"] (DILARANG memasukkan panoramic atau moonroof).
+            * "panoramic" / "panoramic roof" / "panoramic glass roof" -> ["panoramic roof", "panoramic"].
+            * "moonroof" / "moon roof" -> ["moonroof", "moon roof"].
+            * "atap kaca" (generik) -> ["atap kaca", "sunroof", "panoramic", "moonroof"].
+          - KESELAMATAN & DRIVER ASSISTANCE:
+            * "tss" / "safety sense" -> ["tss", "safety sense"].
+            * "blind spot" / "bsm" / "rcta" -> ["blind spot", "bsm", "rcta"].
+            * "adaptive cruise" / "drcc" -> ["adaptive cruise", "drcc"].
+            * "lane departure" / "lda" / "lta" -> ["lane departure", "lda", "lta"].
+            * "kamera 360" / "pvm" / "around view" -> ["360 camera", "around view", "kamera 360", "pvm"].
+          - KENYAMANAN & INTERIOR:
+            * "captain seat" -> ["captain seat", "captain"].
+            * "kursi elektrik" / "power seat" -> ["power seat", "electric seat", "kursi elektrik"].
+            * "pemanas / pendingin kursi" / "ventilated seat" -> ["seat heater", "ventilated seat"].
+            * "air purifier" / "nanoe" -> ["air purifier", "nanoe"].
+            * "ambient light" -> ["ambient light"].
+          - KEMUDAHAN & ELEKTRONIK:
+            * "power backdoor" / "kick sensor" / "bagasi otomatis" -> ["power backdoor", "kick sensor", "bagasi otomatis"].
+            * "wireless charger" / "cas nirkabel" -> ["wireless charger", "cas nirkabel"].
+            * "audio jbl" -> ["jbl", "speaker jbl"].
+            * "rem parkir elektrik" / "epb" / "auto hold" -> ["electric parking brake", "epb", "auto hold"].
+            * "paddle shift" -> ["paddle shift"].
+            * "4x4" / "4wd" / "penggerak 4 roda" / "diff lock" -> ["4x4", "4wd", "differential lock"].
+            * "head up display" / "hud" -> ["head up display", "hud"].
+          - DILARANG memasukkan nama model mobil ke sini.
+      - "exclude_keywords": Array of strings.
+         ATURAN KETAT EXCLUDE_KEYWORDS:
+         1. HANYA isi jika kustomer EKSPLISIT meminta pengecualian (contoh: "tidak mau Fortuner", "selain warna hitam", "bukan mobil listrik").
+         2. DILARANG KERAS mengecualikan kata komersial/pick-up jika kustomer mencari kendaraan untuk angkut barang, sawit, perkebunan, usaha, niaga, proyek, atau muatan berat! Pada kueri sawit/angkut barang/perkebunan, kendaraan niaga dan pick-up seperti Hilux (Single Cabin, D-Cab, Rangga, Dyna) adalah unit UTAMA yang WAJIB dicari.
+         3. HANYA jika kustomer secara eksplisit meminta mobil penumpang keluarga/perkotaan murni ("mobil keluarga harian", "city car penumpang"), Anda boleh mengecualikan kendaraan komersial.
+         4. Jika tidak ada permintaan pengecualian, kembalikan array kosong: [].
       - "budget_min": Angka murni (number) batas BAWAH harga dalam Rupiah. HANYA isi jika kustomer EKSPLISIT menyebut batas minimal ("di atas 200 juta", "minimal 300 juta", "paling murah 250 juta"). Jika tidak ada batas bawah eksplisit, WAJIB isi null.
       - "budget_max": Angka murni (number) batas ATAS harga dalam Rupiah. Jika kustomer bilang "di bawah 300 juta", "maksimal 300 juta", atau "budget 300 juta", isi 300000000. Jika kustomer bilang "budget 400 jutaan" atau "kisaran 400 juta", isi batas atas 499999999 (budget_min tetap null agar mobil di bawah budget tetap masuk rekomendasi). Jika tidak ada batas atas, isi null.
       - CATATAN KHUSUS BUDGET KISARAN: Jika kustomer bilang "budget X jutaan" (misal "budget 400 jutaan"), artinya kustomer mampu membeli mobil hingga kelas 400-an juta, maka set budget_max = 499999999 dan budget_min = null (JANGAN memasang budget_min kaku kecuali diminta).
@@ -388,7 +416,7 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
       - "is_fuel_efficient": true (jika mencari mobil irit bbm/hemat/efisien), false jika tidak.
       - "is_listing": true (jika kustomer meminta "apa saja", "daftar", "tampilkan semua"), false jika tidak.
 
-      GLOSARIUM ISTILAH OTOMOTIF UNTUK SEMANTIC QUERY:
+      GLOSARIUM ISTILAH OTOMOTIF:
       - "CAB-CHS" / "Cab & Chassis" = mobil sasis kosong tanpa bak belakang, siap dipasang bodi karoseri (boks, ambulans, toko keliling, dll).
       - "CAB" / "Kabin" = bagian depan mobil (ruang kemudi sopir dan penumpang).
       - "CHASSIS" / "Sasis" = rangka utama mobil beserta roda dan mesin.
@@ -396,15 +424,12 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
       - "MB" / "Microbus" / "Motorized Business" / "Mobile Business" = sasis untuk modifikasi angkutan penumpang atau model komersial bergerak.
       - "DSL" = mesin Diesel. Varian tanpa "DSL" berarti Bensin.
       - "PICK UP" (tanpa CAB-CHS) = mobil sudah utuh lengkap dengan bak belakang bawaan pabrik.
-      - Jika kustomer mencari mobil "mewah" / "eksekutif" / "pejabat" / "luxury" / "VIP" / "kelas atas" / "tidak masalah harga mahal", tulis ulang semantic_query menjadi: "MPV luxury premium sedan eksekutif Alphard Vellfire Land Cruiser Camry Crown".
-      - Jika kustomer mencari "SUV kompak" / "compact SUV" / "crossover", tulis ulang semantic_query menjadi: "Compact SUV Crossover Yaris Cross Raize".
-      - Jika kustomer menanyakan istilah-istilah di atas, tulis ulang semantic_query menggunakan sinonim yang lebih kaya agar pencarian vektor lebih akurat (misal: "cab chassis sasis kosong karoseri boks komersial").
     `;
 
     const selfQuerySchema = {
       type: SchemaType.OBJECT,
       properties: {
-        semantic_query: { type: SchemaType.STRING, description: "Kata kunci pencarian teknis otomotif tanpa harga" },
+        semantic_query: { type: SchemaType.STRING, description: "Deskripsi kebutuhan kendaraan bersih tanpa harga dan tanpa menambah nama mobil yang tidak disebutkan" },
         exact_keywords: {
           type: SchemaType.ARRAY,
           items: { type: SchemaType.STRING },
@@ -543,83 +568,164 @@ function combineRRF(candidates: any[], queryText: string): any[] {
   const bm25RankMap = new Map<any, number>();
   bm25Sorted.forEach((item, index) => bm25RankMap.set(item.row, index + 1));
 
+  const bm25ScoreMap = new Map<any, number>();
+  withBM25.forEach((item) => bm25ScoreMap.set(item.row, item.bm25Score));
+
   const kConstant = 60;
   const scored = candidates.map((row) => {
     const vRank = vectorRankMap.get(row) || candidates.length;
     const bRank = bm25RankMap.get(row) || candidates.length;
+    const bm25Score = bm25ScoreMap.get(row) || 0;
     const rrfScore = (1 / (kConstant + vRank)) + (1 / (kConstant + bRank));
-    return { row, rrfScore };
+    return { row, rrfScore, bm25Score };
   });
 
   // Sort by RRF score descending
   scored.sort((a, b) => b.rrfScore - a.rrfScore);
+
+  // --- LOGGING MONITORING HYBRID RAG SCORING ---
+  try {
+    console.log("\n==================== [HYBRID RAG SCORE MONITORING] ====================");
+    console.log(`[QUERY]           : "${queryText}"`);
+    console.log(`[CANDIDATE POOL]  : ${candidates.length} varian mobil berhasil dijaring`);
+    console.log("-----------------------------------------------------------------------");
+    const monitoringData = scored.slice(0, 15).map((s, idx) => ({
+      "No": idx + 1,
+      "Mobil": `${s.row.tipe_mobil || ''} ${s.row.varian || ''}`.trim().substring(0, 32),
+      "Jarak Vektor": parseFloat(s.row.jarak || "0") >= 900 ? "N/A (Sparse)" : parseFloat(s.row.jarak || "0").toFixed(4),
+      "Rank Vektor": vectorRankMap.get(s.row) || "-",
+      "Skor BM25": (s.bm25Score || 0).toFixed(4),
+      "Rank BM25": bm25RankMap.get(s.row) || "-",
+      "Skor RRF": (s.rrfScore || 0).toFixed(6)
+    }));
+    console.table(monitoringData);
+    console.log("=======================================================================\n");
+  } catch (logErr) {
+    // Ignore logging errors to ensure request flow is not affected
+  }
+
   return scored.map((s) => s.row);
 }
 
 // --- Dynamic Toyota Feature Synonym Dictionary ---
 const FEATURE_SYNONYM_MAP: Record<string, { triggers: string[]; targets: string[] }> = {
   kamera_360: {
-    triggers: ["360", "around view", "kamera 360"],
-    targets: ["360", "around view", "panoramic view", "pvm", "kamera"],
+    triggers: ["360", "around view", "kamera 360", "pvm", "panoramic view", "panoramic view monitor"],
+    targets: ["360", "around view", "panoramic view", "pvm", "kamera 360"],
   },
   sunroof: {
-    triggers: ["sunroof"],
-    targets: ["sunroof"]
+    triggers: ["sunroof", "sun roof", "sun-roof"],
+    targets: ["sunroof", "sun roof", "sun-roof"],
   },
   panoramic: {
-    triggers: ["panoramic"],
-    targets: ["panoramic"]
+    triggers: ["panoramic", "panoramic roof", "panoramic glass roof", "panoramic glass", "atap panoramic"],
+    targets: ["panoramic", "panoramic roof", "panoramic glass"],
   },
   moonroof: {
-    triggers: ["moonroof"],
-    targets: ["moonroof"]
+    triggers: ["moonroof", "moon roof", "moon-roof"],
+    targets: ["moonroof", "moon roof", "moon-roof"],
   },
   captain_seat: {
-    triggers: ["captain"],
-    targets: ["captain", "kapten"]
+    triggers: ["captain", "captain seat", "kursi kapten", "kapten seat", "kursi pilot"],
+    targets: ["captain", "kapten"],
+  },
+  power_backdoor: {
+    triggers: ["power backdoor", "power back door", "kick sensor", "bagasi otomatis", "pintu bagasi elektrik", "pintu bagasi otomatis", "electric tailgate", "handsfree backdoor"],
+    targets: ["power backdoor", "power back door", "kick sensor", "pintu bagasi", "bagasi otomatis", "backdoor"],
   },
   tss: {
-    triggers: ["tss", "safety sense"],
-    targets: ["tss", "safety sense"]
+    triggers: ["tss", "safety sense", "toyota safety sense"],
+    targets: ["tss", "safety sense"],
+  },
+  bsm_rcta: {
+    triggers: ["blind spot", "bsm", "blind spot monitor", "rcta", "rear cross traffic", "sensor blind spot"],
+    targets: ["blind spot", "bsm", "rcta", "rear cross traffic"],
+  },
+  adaptive_cruise: {
+    triggers: ["adaptive cruise", "drcc", "dynamic radar cruise control", "cruise control adaptif", "cruise control"],
+    targets: ["adaptive cruise", "drcc", "cruise control", "dynamic radar"],
+  },
+  lane_assist: {
+    triggers: ["lane departure", "lane tracing", "lda", "lta", "lane keep assist", "asisten lajur", "peringatan lajur"],
+    targets: ["lane departure", "lane tracing", "lda", "lta"],
   },
   wireless_charger: {
-    triggers: ["wireless charger", "cas nirkabel"],
+    triggers: ["wireless charger", "cas nirkabel", "qi charger", "charger nirkabel", "pengisi daya nirkabel"],
     targets: ["wireless charger", "nirkabel", "qi charger"],
+  },
+  audio_jbl: {
+    triggers: ["jbl", "speaker jbl", "audio jbl", "sound system jbl", "audio premium jbl"],
+    targets: ["jbl", "speaker jbl", "audio jbl"],
+  },
+  electric_seat: {
+    triggers: ["power seat", "electric seat", "kursi elektrik", "kursi listrik", "memory seat", "pengaturan kursi elektrik"],
+    targets: ["power seat", "electric seat", "kursi elektrik", "memory seat"],
+  },
+  seat_heater_ventilation: {
+    triggers: ["seat heater", "heater seat", "pemanas kursi", "ventilated seat", "kursi berventilasi", "pendingin kursi"],
+    targets: ["seat heater", "heater seat", "pemanas kursi", "ventilated seat", "ventilasi kursi"],
+  },
+  air_purifier: {
+    triggers: ["air purifier", "nanoe", "nanoe-x", "nanoe x", "pemurni udara", "ionizer"],
+    targets: ["air purifier", "nanoe", "nanoe-x", "nanoe x", "pemurni udara"],
+  },
+  electric_parking_brake: {
+    triggers: ["electric parking brake", "epb", "rem tangan elektrik", "auto hold", "brake hold", "rem parkir elektrik"],
+    targets: ["electric parking brake", "epb", "rem tangan elektrik", "auto hold", "brake hold"],
+  },
+  paddle_shift: {
+    triggers: ["paddle shift", "paddle shifter", "paddle shift gear", "pedal gigi setir"],
+    targets: ["paddle shift", "paddle shifter"],
+  },
+  ambient_light: {
+    triggers: ["ambient light", "ambient lighting", "lampu ambient", "illumination lamp"],
+    targets: ["ambient light", "ambient lighting", "illumination"],
+  },
+  four_wheel_drive: {
+    triggers: ["4x4", "4wd", "four wheel drive", "four-wheel drive", "all wheel drive", "awd", "diff lock", "differential lock", "penggerak 4 roda"],
+    targets: ["4x4", "4wd", "awd", "differential lock", "diff lock"],
+  },
+  head_up_display: {
+    triggers: ["head up display", "hud", "head-up display"],
+    targets: ["head up display", "hud", "head-up"],
   },
 };
 
 // --- Helper for Dynamic Exact Keyword Feature Fallback Matching ---
+function matchesExactFeature(row: any, exactKeywords: string[]): boolean {
+  if (!exactKeywords || exactKeywords.length === 0) return true;
+  if (!row) return false;
+  const text = `${row.tipe_mobil || ''} ${row.varian || ''} ${typeof row.spesifikasi_detail === 'string' ? row.spesifikasi_detail : JSON.stringify(row.spesifikasi_detail || '')}`.toLowerCase();
+
+  return exactKeywords.some((kw) => {
+    const cleaned = kw.toLowerCase().trim();
+    if (!cleaned) return false;
+
+    const matchedGroup = Object.values(FEATURE_SYNONYM_MAP).find((group) =>
+      group.triggers.some((trigger) => cleaned.includes(trigger))
+    );
+
+    if (matchedGroup) {
+      return matchedGroup.targets.some((target) => text.includes(target));
+    }
+
+    // 1. Matched as exact phrase in text
+    if (text.includes(cleaned)) return true;
+
+    // 2. Matched as multi-word tokens
+    const words = cleaned.split(/\s+/).filter((w) => w.length > 2);
+    if (words.length > 1) {
+      return words.every((w) => text.includes(w));
+    }
+
+    return false;
+  });
+}
+
 function hasFeatureMatch(hasil: any[], exactKeywords: string[]): boolean {
   if (!exactKeywords || exactKeywords.length === 0) return true;
   if (!hasil || hasil.length === 0) return false;
-
-  return hasil.some((row) => {
-    const text = `${row.tipe_mobil || ''} ${row.varian || ''} ${typeof row.spesifikasi_detail === 'string' ? row.spesifikasi_detail : JSON.stringify(row.spesifikasi_detail || '')}`.toLowerCase();
-
-    return exactKeywords.some((kw) => {
-      const cleaned = kw.toLowerCase().trim();
-      if (!cleaned) return false;
-
-      const matchedGroup = Object.values(FEATURE_SYNONYM_MAP).find((group) =>
-        group.triggers.some((trigger) => cleaned.includes(trigger))
-      );
-
-      if (matchedGroup) {
-        return matchedGroup.targets.some((target) => text.includes(target));
-      }
-
-      // 1. Matched as exact phrase in text
-      if (text.includes(cleaned)) return true;
-
-      // 2. Matched as multi-word tokens
-      const words = cleaned.split(/\s+/).filter((w) => w.length > 2);
-      if (words.length > 1) {
-        return words.every((w) => text.includes(w));
-      }
-
-      return false;
-    });
-  });
+  return hasil.some((row) => matchesExactFeature(row, exactKeywords));
 }
 
 function buildFeatureSqlCondition(exactKeywords: string[]): string {
@@ -697,10 +803,16 @@ async function cariKonteksHybrid(
     modelFilter = ` AND (${conditions})`;
   }
 
+  // Safety guard: jika kueri pengguna berorientasi angkutan barang/sawit/kebun/usaha/niaga, batalkan exclusion untuk pickup/truk/komersial
+  const isCargoIntent = /(sawit|angkut|barang|muatan|niaga|kebun|perkebunan|usaha|bak|proyek|truk|pickup|pick up|beban|komersial)/i.test(originalMessage + " " + expandedQuery);
+  const effectiveExcludes = isCargoIntent 
+    ? allExcludes.filter(e => !["truk", "pick up", "pickup", "cab-chs", "komersial"].includes(e.toLowerCase().trim()))
+    : allExcludes;
+
   // Build model exclusion clause
   let excludeFilter = "";
-  if (allExcludes.length > 0) {
-    const conditions = allExcludes.map((m) => {
+  if (effectiveExcludes.length > 0) {
+    const conditions = effectiveExcludes.map((m) => {
       const kw = m.toLowerCase().trim();
       if (kw === 'truk') {
         return `(LOWER(tipe_mobil) NOT LIKE '%truk%' AND LOWER(spesifikasi_detail) NOT LIKE '% truk %' AND LOWER(spesifikasi_detail) NOT LIKE 'truk %' AND LOWER(spesifikasi_detail) NOT LIKE '% truk')`;
@@ -979,13 +1091,28 @@ async function cariKonteksHybrid(
         console.log(`[RAG Hybrid Sort] Sorted candidate pool by bbm_kota DESC (paling irit di kota).`);
       }
 
-      // Jika kustomer meminta pengurutan harga pada pencarian ber-fitur (misal: "mobil kamera 360 termurah")
-      if (queryHarga === "termurah") {
-        combinedCandidates.sort((a, b) => parseFloat(a.harga) - parseFloat(b.harga));
-        console.log(`[RAG Hybrid Sort] Sorted feature candidate pool by price ASC (termurah).`);
-      } else if (queryHarga === "termahal") {
-        combinedCandidates.sort((a, b) => parseFloat(b.harga) - parseFloat(a.harga));
-        console.log(`[RAG Hybrid Sort] Sorted feature candidate pool by price DESC (termahal).`);
+      // Jika kustomer meminta pengurutan harga pada pencarian ber-fitur (misal: "mobil panoramic roof termurah")
+      if (queryHarga === "termurah" || queryHarga === "termahal") {
+        if (selfQuery.exact_keywords.length > 0) {
+          const matchingCars = combinedCandidates.filter((c) => matchesExactFeature(c, selfQuery.exact_keywords));
+          const nonMatchingCars = combinedCandidates.filter((c) => !matchesExactFeature(c, selfQuery.exact_keywords));
+
+          if (queryHarga === "termurah") {
+            matchingCars.sort((a, b) => parseFloat(a.harga) - parseFloat(b.harga));
+          } else {
+            matchingCars.sort((a, b) => parseFloat(b.harga) - parseFloat(a.harga));
+          }
+
+          combinedCandidates = [...matchingCars, ...nonMatchingCars];
+          console.log(`[RAG Hybrid Sort] Prioritized and sorted ${matchingCars.length} feature-matching candidates by price ${queryHarga === "termurah" ? "ASC (termurah)" : "DESC (termahal)"}.`);
+        } else {
+          if (queryHarga === "termurah") {
+            combinedCandidates.sort((a, b) => parseFloat(a.harga) - parseFloat(b.harga));
+          } else {
+            combinedCandidates.sort((a, b) => parseFloat(b.harga) - parseFloat(a.harga));
+          }
+          console.log(`[RAG Hybrid Sort] Sorted feature candidate pool by price ${queryHarga === "termurah" ? "ASC (termurah)" : "DESC (termahal)"}.`);
+        }
       }
     }
 
@@ -1090,6 +1217,7 @@ async function tanyaGemini(
        - Jika unit tidak ditemukan / database kosong, katakan dengan jujur bahwa unit belum tersedia di database resmi kami saat ini, lalu rekomendasikan alternatif model Toyota sekelas yang tersedia.
     2. LOGIKA REKOMENDASI & FITUR SPESIFIK:
        - Jika kustomer mencari fitur spesifik (misal: sunroof, panoramic roof, moonroof, TSS, captain seat, atau mobil irit): TAMPILKAN LANGSUNG varian di <data_database> yang MEMILIKI fitur tersebut beserta harganya sebagai rekomendasi utama. Dilarang menampilkan harga varian terendah yang tidak memiliki fitur tersebut.
+       - DILARANG KERAS menyebutkan atau membuat catatan penolakan untuk unit mobil yang TIDAK memiliki fitur yang dicari (contoh: DILARANG mengatakan 'Toyota Veloz tidak tersedia atap kaca' jika kustomer mencari panoramic roof). Fokuskan rekomendasi HANYA pada unit-unit yang benar-benar memiliki fitur yang dicari kustomer.
        - Untuk pertanyaan rekomendasi kategori atau segmen (misal: SUV, MPV, Sedan, Mobil Keluarga, Mobil Mewah, City Car): TAMPILKAN variasi pilihan model mobil yang BERBEDA yang tersedia di <data_database> (jangan hanya menampilkan varian dari 1 model saja). Jika ada model sekelas yang harganya lebih terjangkau atau variasi segmen yang relevan (misal Raize/Rush untuk SUV kompak), sebutkan juga sebagai opsi alternatif.
        - PERHATIKAN PEMISAHAN SPESIFIKASI ATAP KACA: Sunroof (kaca yang dapat dibuka/tilt), Moonroof (kaca yang dapat digeser), dan Panoramic Roof / Panoramic Glass Roof (atap kaca lebar panoramic) adalah fitur yang BERBEDA secara fungsi dan spesifikasi. Sebutkan tipe atap kaca persis sesuai data di <data_database> dan DILARANG menyebut panoramic/moonroof sebagai sunroof jika tidak tercantum sebagai sunroof di database.
        - Untuk keiritan BBM, gunakan acuan angka km/l di database (semakin tinggi angka km/l = semakin irit).

@@ -1,0 +1,59 @@
+[
+  {
+    "tipe_mobil": "Toyota Hilux",
+    "varian": "2.4L E 4x4 M/T",
+    "harga": "Tidak tersedia",
+    "est_bbm_kota": "Tidak tersedia",
+    "est_bbm_tol": "Tidak tersedia",
+    "spesifikasi": {
+      "segmentation": "Double Cabin 4x4",
+      "performance_specs": "Mesin 2GD-FTV, 4 Cylinders, In Line 16-Valve DOHC with VNT Intercooler, kapasitas 2.393 cc, tenaga 149.6 ps / 3.400 rpm, torsi 40.8 kgm / 1.600-2.000 rpm, transmisi manual 6 percepatan, sistem penggerak 4WD (part time) with rear differential lock",
+      "fuel_system_capacity_efficiency_estimates": "Kapasitas tangki bahan bakar 80 liter, bahan bakar diesel dengan sistem Fuel Injection w/ Common Rail",
+      "dimensions": "Panjang 5.285 mm, kapasitas penumpang 5-seater",
+      "colour_option": "Super White II, Attitude Black Metallic, Silver Metallic, Dark Gray Mica Metallic",
+      "chassis_drivetrain": "Sistem kemudi Rack & Pinion, suspensi depan Double Wishbone, suspensi belakang Leaf Spring Rigid Axle, sistem pengereman depan 16\" Ventilated Disc, sistem pengereman belakang Leading Trailing Drum, velg 17 inci dengan ban 265/65 R17 Steel",
+      "exterior": "New Front Honeycomb Mesh Grille, New Headlamp Design, New LED Fog Lamp Design",
+      "interior_comfort": "Stylish dashboard colour, steering adjustment tilt, air conditioner",
+      "technology": "Flat Head Unit Design dengan konektivitas Radio, USB, AUX, Easy 4x4 switch dial-type",
+      "safety_specs": "Anti-lock Braking System (ABS) untuk mencegah penguncian roda saat pengereman mendadak, Electronic Brake-force Distribution (EBD) untuk distribusi tenaga pengereman, Rear Differential Lock System untuk mengamankan traksi di medan berlumpur, Immobilizer untuk keamanan anti-pencurian"
+    }
+  },
+  {
+    "tipe_mobil": "Toyota Hilux",
+    "varian": "2.4L G 4x4 M/T",
+    "harga": "Tidak tersedia",
+    "est_bbm_kota": "Tidak tersedia",
+    "est_bbm_tol": "Tidak tersedia",
+    "spesifikasi": {
+      "segmentation": "Double Cabin Pickup",
+      "performance_specs": "Mesin 2 GD-FTV, 4 Cylinders, In Line 16-Valve DOHC with VNT Intercooler, kapasitas 2.393 cc, tenaga maksimum 149.6 ps / 3,400 rpm, torsi maksimum 40.8 kgm / 1,600-2,000 rpm, transmisi 6-speed manual, sistem penggerak roda 4WD (part time) with rear differential lock.",
+      "fuel_system_capacity_efficiency_estimates": "Kapasitas tangki bahan bakar 80 liter, bahan bakar diesel dengan sistem Fuel Injection w/ Common Rail.",
+      "dimensions": "Panjang 5,325 mm, lebar 1,855 mm, tinggi 1,815 mm, wheelbase 3,085 mm, kapasitas penumpang 5-seater.",
+      "colour_option": "Super White II, Attitude Black Metallic, Silver Metallic, Dark Gray Mica Metallic",
+      "chassis_drivetrain": "Sistem kemudi Rack & Pinion, suspensi depan Double Wishbone, suspensi belakang Leaf Spring Rigid Axle, sistem pengereman depan 16\" Ventilated Disc, sistem pengereman belakang Leading Trailing Drum, velg 17 inci dengan ban 265/65 R17 Steel.",
+      "exterior": "New Front Honeycomb Mesh Grille dengan desain trapezoidal, New Headlamp Design dengan lampu beam tinggi dan rendah terpisah, New LED Fog Lamp Design, velg alloy 17 inci desain abu-abu gelap.",
+      "interior_comfort": "Prominent Black Seat Color dengan aksen abu-abu, Air Conditioner, Steering Adjustment (tilt), Steering Switch untuk audio, telepon, VR, dan MID, Overhead Console, Sun Visor.",
+      "technology": "Flat Head Unit Design dengan layar kapasitif, konektivitas Radio, USB, AUX, dan Bluetooth, Combimeter Design dengan MID dan indikator ECO, Illuminated Entry.",
+      "safety_specs": "Sistem keselamatan meliputi ABS & EBD untuk mencegah penguncian roda saat pengereman mendadak, Vehicle Stability Control (VSC) untuk menjaga kestabilan di tikungan, Trailer Sway Control (TSC) untuk mencegah guncangan saat menarik beban, Hill Assist Control (HAC) untuk mencegah kendaraan mundur di tanjakan, Emergency Brake Signal, Immobilizer, serta SRS Airbag (Front Driver, Passenger, dan Driver Knee)."
+    }
+  },
+  {
+    "tipe_mobil": "Toyota Hilux",
+    "varian": "2.4L V 4x4 A/T",
+    "harga": "Tidak tersedia",
+    "est_bbm_kota": "Tidak tersedia",
+    "est_bbm_tol": "Tidak tersedia",
+    "spesifikasi": {
+      "segmentation": "Double Cabin 4x4",
+      "performance_specs": "Mesin 2 GD-FTV, 4 Cylinders, In Line 16-Valve DOHC with VNT Intercooler, kapasitas 2.393 cc, tenaga maksimum 149.6 ps / 3,400 rpm, torsi maksimum 40.8 kgm / 1,600-2,000 rpm, transmisi 6-speed otomatis dengan Sport Sequential Shiftmatic, sistem penggerak 4WD (part time) dengan rear differential lock.",
+      "fuel_system_capacity_efficiency_estimates": "Kapasitas tangki bahan bakar 80 liter, bahan bakar diesel dengan sistem Fuel Injection w/ Common Rail.",
+      "dimensions": "Panjang 5,325 mm, lebar 1,855 mm, tinggi 1,815 mm, wheelbase 3,085 mm, kapasitas 5 penumpang (5-seater).",
+      "colour_option": "Super White II, Attitude Black Metallic, Silver Metallic, Dark Gray Mica Metallic",
+      "chassis_drivetrain": "Sistem kemudi Rack & Pinion, suspensi depan Double Wishbone, suspensi belakang Leaf Spring Rigid Axle, sistem pengereman depan 16\" Ventilated Disc, sistem pengereman belakang Leading Trailing Drum, velg Alloy 265/65 R17.",
+      "exterior": "New Dynamic Honeycomb Mesh Grille, New Striking Front Bumper, New LED Fog Lamp Design, New Headlamp Design dengan lampu beam tinggi dan rendah terpisah.",
+      "interior_comfort": "Luxurious Black Leather Seat, Adaptable Dual Auto AC 5 Mode dengan fitur defogger, steering adjustment tilt & telescopic, overhead console, sun visor.",
+      "technology": "Flat Head Unit Design 7 inci dengan fitur mirroring, DVD, Radio, USB, Bluetooth, Steering Switch (Audio, Telephone, VR, MID), Combimeter Design dengan MID dan indikator ECO, Illuminated Entry.",
+      "safety_specs": "ABS & EBD (mencegah penguncian roda saat pengereman mendadak), BA (Brake Assist), VSC (Vehicle Stability Control untuk menjaga kestabilan saat tikungan tajam), TSC (Trailer Sway Control untuk mencegah guncangan), HAC (Hill Assist Control untuk mencegah kendaraan mundur di tanjakan), SRS Airbag (Front D+P, D-Knee, Side Airbag, Curtain Shield Airbag), Parking Support Alert (2 sensor depan & 4 sensor belakang), Emergency Brake Signal, Immobilizer."
+    }
+  }
+]

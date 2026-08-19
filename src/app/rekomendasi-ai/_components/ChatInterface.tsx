@@ -38,6 +38,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   rewrittenQuery?: string;
+  context?: string;
 }
 
 const WELCOME_MESSAGE = `Selamat datang di **Layanan Konsultasi Digital Auto2000 Rantauprapat**! 🚗✨
@@ -275,27 +276,60 @@ export default function ChatInterface() {
   const isCarMentionedInText = (carName: string, text: string): boolean => {
     if (!text || !carName) return false;
     const lowerText = text.toLowerCase();
-    const cleanName = carName.toLowerCase().replace(/^(toyota\s+)?(all\s+new\s+|new\s+)?/i, "").trim();
-    const words = cleanName.split(/\s+/);
+    
+    // Bersihkan nama mobil dari prefix umum
+    const cleanName = carName.toLowerCase()
+      .replace(/^(toyota\s+)?(all\s+new\s+|new\s+)?(kijang\s+)?/i, "")
+      .trim();
 
-    if (words.length === 0) return false;
+    // Daftar model multi-kata yang perlu dicocokkan secara spesifik
+    const multiWordModels = [
+      "corolla cross",
+      "corolla altis",
+      "innova zenix",
+      "innova reborn",
+      "yaris cross",
+      "gr yaris",
+      "yaris gr sport",
+      "land cruiser",
+      "hilux rangga",
+      "hilux d-cab",
+      "hilux double cabin",
+      "hilux single cabin",
+      "urban cruiser",
+      "gr supra",
+      "gr 86"
+    ];
 
-    const firstWord = words[0];
-    const secondWord = words[1];
-
-    if (secondWord && ["cross", "zenix", "altis", "cruiser", "rangga", "hev", "bev"].includes(secondWord)) {
-      const family = `${firstWord} ${secondWord}`;
-      if (lowerText.includes(family)) {
-        return true;
+    for (const model of multiWordModels) {
+      if (cleanName.includes(model)) {
+        if (lowerText.includes(model)) return true;
+        const subName = model.split(" ")[1];
+        if (subName && lowerText.includes(subName)) return true;
       }
     }
 
-    if (firstWord === "yaris" && !cleanName.includes("cross") && lowerText.includes("yaris cross") && !lowerText.includes("gr yaris") && !lowerText.includes("yaris sport") && !lowerText.includes("yaris 1.5")) {
+    // Penanganan khusus Yaris biasa vs Yaris Cross
+    if (cleanName.startsWith("yaris") && !cleanName.includes("cross")) {
+      const hasRegularYaris = /\byaris\b(?!\s+cross)/i.test(lowerText) || lowerText.includes("gr yaris") || lowerText.includes("yaris gr");
+      if (hasRegularYaris) return true;
       return false;
     }
 
-    if (lowerText.includes(firstWord)) {
-      return true;
+    // Penanganan khusus Corolla biasa vs Corolla Cross / Altis
+    if (cleanName.startsWith("corolla") && !cleanName.includes("cross") && !cleanName.includes("altis")) {
+      if (lowerText.includes("corolla")) return true;
+    }
+
+    // Pencocokan kata utama model (misal: "avanza", "veloz", "calya", "rush", "fortuner", "voxy", "alphard", "vellfire", "bz4x", "raize", "agya", "hiace", "camry")
+    const words = cleanName.split(/\s+/).filter(w => w.length > 2);
+    if (words.length > 0) {
+      const primaryWord = words[0];
+      if (!["type", "tipe", "cvt", "hev", "bev", "dsl", "sport"].includes(primaryWord)) {
+        if (lowerText.includes(primaryWord)) {
+          return true;
+        }
+      }
     }
 
     return false;
@@ -473,7 +507,8 @@ export default function ChatInterface() {
           {
             role: "assistant",
             content: data.response,
-            rewrittenQuery: data.rewrittenQuery || undefined
+            rewrittenQuery: data.rewrittenQuery || undefined,
+            context: data.context || undefined,
           },
         ]);
       }
@@ -613,7 +648,8 @@ export default function ChatInterface() {
         ) : (
           <>
             {messages.map((msg, idx) => {
-              const cars = msg.role === "assistant" ? parseContextCars(contextData[idx] || "", msg.content) : [];
+              const cars = msg.role === "assistant" ? parseContextCars(msg.context || contextData[idx] || "", msg.content) : [];
+              const isExpanded = expandedCarCards[idx] !== undefined ? expandedCarCards[idx] : true;
 
               return (
                 <div
@@ -668,18 +704,18 @@ export default function ChatInterface() {
                             <Car className="w-3.5 h-3.5" />
                           </div>
                           <span>
-                            {expandedCarCards[idx]
+                            {isExpanded
                               ? `Sembunyikan Visual Unit (${cars.length})`
                               : `Lihat Kartu Unit Terkait (${cars.length} Mobil)`}
                           </span>
-                          {expandedCarCards[idx] ? (
+                          {isExpanded ? (
                             <ChevronUp className="w-3.5 h-3.5 text-muted-foreground ml-0.5" />
                           ) : (
                             <ChevronDown className="w-3.5 h-3.5 text-muted-foreground ml-0.5" />
                           )}
                         </button>
 
-                        {expandedCarCards[idx] && (
+                        {isExpanded && (
                           <div className="grid grid-cols-2 gap-1.5 sm:gap-3 pt-1 animate-fade-in w-full">
                             {cars.map((car, carIdx) => {
                               const isComparing = compareList.some((item) => item.name === car.name);
