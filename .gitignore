@@ -61,7 +61,6 @@ next-env.d.ts
 HYBRID_RAG_WORKFLOW.md
 
 # evaluation & benchmarks
-/evaluate/
 /eval/
 .agents/skills/brandkit/SKILL.md
 .agents/skills/design-taste-frontend/SKILL.md
@@ -150,3 +149,21 @@ Alur_Lengkap_Algoritma_BM25_dan_RRF_Revisi.docx
 Alur_Lengkap_Algoritma_BM25_dan_RRF.docx
 draft-skripsi.docx
 extracted_tables.json
+evaluate/test_evaluasi_retrieval_kaggle.py
+evaluate/test_evaluasi_generate_kaggle.py
+evaluate/test_case.json
+evaluate/scratch_check_scores.py
+evaluate/Revisi_Subbab_G_dan_H_Evaluasi_DeepEval.docx
+evaluate/real-case-bm25
+evaluate/rag_pipeline.py
+evaluate/new-hasil_evaluasi_generative.json
+evaluate/Laporan_Evaluasi_RAG_Auto2000.pdf
+evaluate/referensi_tc/justifikasi_rgb.txt
+evaluate/referensi_tc/justifikasi_distribusi_rgb.md
+evaluate/referensi_tc/Justifikasi Persebaran Skenario Test Case.pdf
+evaluate/referensi_tc/hasil-evaluasi.pdf
+evaluate/referensi_tc/eval-deepeval.txt
+evaluate/referensi_tc/eval-deepeval.pdf
+evaluate/referensi_tc/Es-et-al_2024_Ragas.pdf
+evaluate/referensi_tc/BAB-5-Revisi_Subbab_G_dan_H_Evaluasi_DeepEval.docx
+evaluate/referensi_tc/analisis_persebaran_test_case.md
