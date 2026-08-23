@@ -77,10 +77,8 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 jam
 // Prefix umum merek yang perlu dihapus
 const STRIP_PREFIXES = /^(toyota\s+)?(all\s+new\s+|new\s+)?/i;
 
-/**
- * Dari nama lengkap di DB, buat semua kombinasi alias (N-grams).
- * @param dynamicBlacklist Kata-kata tunggal yang tidak boleh dijadikan alias karena terlalu umum
- */
+// Fungsi untuk membuat variasi nama alias mobil (N-grams) dari nama lengkap di database.
+// Parameter dynamicBlacklist berisi kata-kata umum yang dilarang menjadi alias model tunggal.
 function generateAliases(fullName: string, dynamicBlacklist: Set<string>): string[] {
   const stripped = fullName.replace(STRIP_PREFIXES, "").trim();
   if (!stripped) return [fullName];
@@ -401,12 +399,7 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
             * "4x4" / "4wd" / "penggerak 4 roda" / "diff lock" -> ["4x4", "4wd", "differential lock"].
             * "head up display" / "hud" -> ["head up display", "hud"].
           - DILARANG memasukkan nama model mobil ke sini.
-      - "exclude_keywords": Array of strings.
-         ATURAN KETAT EXCLUDE_KEYWORDS:
-         1. HANYA isi jika kustomer EKSPLISIT meminta pengecualian (contoh: "tidak mau Fortuner", "selain warna hitam", "bukan mobil listrik").
-         2. DILARANG KERAS mengecualikan kata komersial/pick-up jika kustomer mencari kendaraan untuk angkut barang, sawit, perkebunan, usaha, niaga, proyek, atau muatan berat! Pada kueri sawit/angkut barang/perkebunan, kendaraan niaga dan pick-up seperti Hilux (Single Cabin, D-Cab, Rangga, Dyna) adalah unit UTAMA yang WAJIB dicari.
-         3. HANYA jika kustomer secara eksplisit meminta mobil penumpang keluarga/perkotaan murni ("mobil keluarga harian", "city car penumpang"), Anda boleh mengecualikan kendaraan komersial.
-         4. Jika tidak ada permintaan pengecualian, kembalikan array kosong: [].
+      - "exclude_keywords": Array of strings. HANYA isi jika kustomer EKSPLISIT meminta pengecualian (contoh: "tidak mau Fortuner", "selain warna hitam", "bukan mobil listrik"). Jika tidak ada permintaan pengecualian, kembalikan array kosong: [].
       - "budget_min": Angka murni (number) batas BAWAH harga dalam Rupiah. HANYA isi jika kustomer EKSPLISIT menyebut batas minimal ("di atas 200 juta", "minimal 300 juta", "paling murah 250 juta"). Jika tidak ada batas bawah eksplisit, WAJIB isi null.
       - "budget_max": Angka murni (number) batas ATAS harga dalam Rupiah. Jika kustomer bilang "di bawah 300 juta", "maksimal 300 juta", atau "budget 300 juta", isi 300000000. Jika kustomer bilang "budget 400 jutaan" atau "kisaran 400 juta", isi batas atas 499999999 (budget_min tetap null agar mobil di bawah budget tetap masuk rekomendasi). Jika tidak ada batas atas, isi null.
       - CATATAN KHUSUS BUDGET KISARAN: Jika kustomer bilang "budget X jutaan" (misal "budget 400 jutaan"), artinya kustomer mampu membeli mobil hingga kelas 400-an juta, maka set budget_max = 499999999 dan budget_min = null (JANGAN memasang budget_min kaku kecuali diminta).
@@ -518,6 +511,7 @@ function calculateBM25Score(
 
   const effectiveAvgDocLen = avgDocLen > 0 ? avgDocLen : 1;
 
+  //Perhitungan BM25 Scoring
   let score = 0;
   for (const token of queryTokens) {
     const tf = docFreqMap[token] || 0;
@@ -526,7 +520,6 @@ function calculateBM25Score(
       score += tfNorm;
     }
   }
-
   return score;
 }
 
@@ -763,7 +756,7 @@ function buildFeatureSqlCondition(exactKeywords: string[]): string {
 async function cariKonteksHybrid(
   selfQuery: SelfQuery,
   originalMessage: string,
-  chatHistory: { role: string; content: string }[] = []
+  _chatHistory: { role: string; content: string }[] = []
 ): Promise<string> {
   // Budget tolerance: jika budget_min === budget_max (misal user bilang "budget 350 juta"),
   // artinya "sampai 350 juta", bukan "tepat 350 juta". Null-kan budget_min.
@@ -803,16 +796,10 @@ async function cariKonteksHybrid(
     modelFilter = ` AND (${conditions})`;
   }
 
-  // Safety guard: jika kueri pengguna berorientasi angkutan barang/sawit/kebun/usaha/niaga, batalkan exclusion untuk pickup/truk/komersial
-  const isCargoIntent = /(sawit|angkut|barang|muatan|niaga|kebun|perkebunan|usaha|bak|proyek|truk|pickup|pick up|beban|komersial)/i.test(originalMessage + " " + expandedQuery);
-  const effectiveExcludes = isCargoIntent 
-    ? allExcludes.filter(e => !["truk", "pick up", "pickup", "cab-chs", "komersial"].includes(e.toLowerCase().trim()))
-    : allExcludes;
-
   // Build model exclusion clause
   let excludeFilter = "";
-  if (effectiveExcludes.length > 0) {
-    const conditions = effectiveExcludes.map((m) => {
+  if (allExcludes.length > 0) {
+    const conditions = allExcludes.map((m) => {
       const kw = m.toLowerCase().trim();
       if (kw === 'truk') {
         return `(LOWER(tipe_mobil) NOT LIKE '%truk%' AND LOWER(spesifikasi_detail) NOT LIKE '% truk %' AND LOWER(spesifikasi_detail) NOT LIKE 'truk %' AND LOWER(spesifikasi_detail) NOT LIKE '% truk')`;
@@ -855,13 +842,9 @@ async function cariKonteksHybrid(
     budgetClause += " AND harga <= ?";
     budgetParams.push(budgetMax);
   }
-
-  // Catatan: Pencocokan kata kunci fitur (exact_keywords) kini ditangani secara fleksibel oleh BM25 + RRF
-  // sehingga tidak lagi membutuhkan filter SQL LIKE yang kaku (mencegah 0-result).
   const additionalFilters = `${modelFilter}${excludeFilter}${hybridClause}${seaterClause}${budgetClause}`;
 
   // --- FAST PATH: Direct SQL Query HANYA jika user menanyakan harga murni tanpa fitur spesifik ---
-  // Jika ada exact_keywords (misal: "mobil sunroof termurah"), WAJIB lewat Dual-Retrieval Hybrid Search agar fitur tidak bypass!
   if (queryHarga && selfQuery.exact_keywords.length === 0) {
     console.log(`[RAG Price Compare] Detected: "${queryHarga}" with filters: "${additionalFilters}" — bypassing vector search`);
     let koneksiHarga: mysql.Connection | undefined;
@@ -1018,7 +1001,7 @@ async function cariKonteksHybrid(
     }
 
     // --- PATH 1: Dense Vector Retrieval ---
-    const vectorLimit = (isSpecificModel || queryListing) ? (isSpecificModel ? "LIMIT 30" : "LIMIT 15") : "LIMIT 15";
+    const vectorLimit = (isSpecificModel || queryListing) ? "LIMIT 30" : "LIMIT 15";
     const vectorSql = `
       SELECT tipe_mobil, varian, harga, spesifikasi_detail, jarak, bbm_kota, bbm_tol FROM (
         SELECT tipe_mobil, varian, harga, spesifikasi_detail, bbm_kota, bbm_tol,
@@ -1313,8 +1296,6 @@ export async function POST(req: Request) {
     const konteks = await cariKonteksHybrid(selfQuery, message, chatHistory);
 
     // --- STEP 3: Distributed Concurrency Lock (Semaphore) ---
-    let usingLocalQueue = true;
-
     let jawaban = "";
     let redisSuccess = false;
 
@@ -1374,7 +1355,8 @@ export async function POST(req: Request) {
       // Fallback ke Local In-Memory Queue (Semaphore)
       const queueStatus = localSemaphore.status;
       if (queueStatus.queued > 0) {
-        console.log(`[Local Queue] Request queued. Running: ${queueStatus.running}, Queued: ${queueStatus.queued}`);
+        console.log(`[Local Queue] Request queued. 
+          Running: ${queueStatus.running}, Queued: ${queueStatus.queued}`);
       }
 
       await localSemaphore.acquire();

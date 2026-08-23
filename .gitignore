@@ -136,5 +136,17 @@ browsur toyota/suv/land cruiser.pdf
 browsur toyota/suv/rush.pdf
 browsur toyota/suv/toyota raize.pdf
 browsur toyota/suv/urban cruiser & bz4x.pdf
-browsur toyota/suv/yaris cross hybrid.pdf
 Kerangka_Kerja_Penelitian_Bab_3_2.docx
+
+# python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.deepeval/
+browsur toyota/suv/yaris cross hybrid.pdf
+Alur_Lengkap_Algoritma_BM25_dan_RRF_Revisi.docx
+Alur_Lengkap_Algoritma_BM25_dan_RRF.docx
+draft-skripsi.docx
+extracted_tables.json

@@ -64,7 +64,7 @@ for p in env_candidates:
     if os.path.exists(p):
         load_dotenv(dotenv_path=p, override=False)
 
-load_dotenv()  # Fallback default cwd
+load_dotenv()  # Fallback default
 
 # --- Pydantic Schema untuk Ekstraksi Terstruktur Gemini ---
 class CarSpecification(BaseModel):
