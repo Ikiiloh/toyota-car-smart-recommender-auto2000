@@ -122,40 +122,54 @@ function RadarLoader() {
 }
 
 // Helper function to match RAG recommended car names to Google Sheet data images
+const normalizeName = (name: string): string => {
+  return name.toLowerCase()
+    .replace(/-/g, " ")
+    .replace(/\b(toyota|all new|new|kijang|gr|4x2|4x4|2wd|4wd|hev)\b/gi, " ")
+    .replace(/\bhybrid\b/g, " hybrid ")  // keep hybrid as keyword
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 const matchCarImage = (recommendedName: string, storeCars: any[]): string | null => {
   if (!storeCars || storeCars.length === 0) return null;
 
-  const cleanRec = recommendedName.toLowerCase()
-    .replace(/^(toyota\s+)?(all\s+new\s+|new\s+)?(kijang\s+)?/i, "")
-    .trim();
+  // Normalize "hev" to "hybrid" equivalents for matching
+  const recNormalized = normalizeName(
+    recommendedName.replace(/\bhev\b/gi, "hybrid")
+  );
 
   for (const car of storeCars) {
     if (!car.nama || !car.gambar) continue;
+    const storeNormalized = normalizeName(
+      car.nama.replace(/\bhev\b/gi, "hybrid")
+    );
 
-    const cleanStoreName = car.nama.toLowerCase()
-      .replace(/-/g, " ")
-      .replace(/^toyota\s+/i, "")
-      .trim();
-
-    if (cleanRec.includes(cleanStoreName) || cleanStoreName.includes(cleanRec)) {
+    if (recNormalized === storeNormalized) return car.gambar;
+    if (recNormalized.includes(storeNormalized) || storeNormalized.includes(recNormalized)) {
       return car.gambar;
     }
   }
 
-  const recWords = cleanRec.split(/\s+/).filter((w: string) => w.length > 2);
+  // Word-overlap fallback: match on significant model keywords
+  const STOP_WORDS = new Set(["toyota", "new", "all", "kijang", "gr", "4x2", "4x4", "2wd", "4wd", "hev", "the"]);
+  const recWords = recNormalized.split(/\s+/).filter((w: string) => w.length > 2 && !STOP_WORDS.has(w));
+
+  let bestMatch: { gambar: string; score: number } | null = null;
   for (const car of storeCars) {
     if (!car.nama || !car.gambar) continue;
+    const storeNormalized = normalizeName(car.nama.replace(/\bhev\b/gi, "hybrid"));
+    const storeWords = storeNormalized.split(/\s+/).filter((w: string) => w.length > 2 && !STOP_WORDS.has(w));
 
-    const cleanStoreName = car.nama.toLowerCase().replace(/-/g, " ").replace(/^toyota\s+/i, "").trim();
-    const storeWords = cleanStoreName.split(/\s+/).filter((w: string) => w.length > 2);
+    const matchedWords = storeWords.filter((word: string) => recWords.includes(word));
+    const score = matchedWords.length / Math.max(storeWords.length, 1);
 
-    const hasWordMatch = storeWords.some((word: string) => recWords.includes(word));
-    if (hasWordMatch) {
-      return car.gambar;
+    if (score > 0.5 && (!bestMatch || score > bestMatch.score)) {
+      bestMatch = { gambar: car.gambar, score };
     }
   }
 
-  return null;
+  return bestMatch ? bestMatch.gambar : null;
 };
 
 export default function ChatInterface() {

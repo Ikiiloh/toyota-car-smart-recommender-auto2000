@@ -10,7 +10,7 @@ Pastikan terminal berada di dalam folder `admin`:
 cd C:\Users\muhri\Desktop\prototype\admin
 ```
 Pastikan file `.env` sudah memuat:
-- `GOOGLE_API_KEY`
+- `GOOGLE_API_KEY_EXTRACT`
 - `TIDB_HOST`, `TIDB_USER`, `TIDB_PASSWORD`, `TIDB_NAME`, `TIDB_PORT`
 
 ---

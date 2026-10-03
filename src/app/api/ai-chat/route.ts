@@ -347,139 +347,143 @@ async function rewriteQueryForRAG(message: string, chatHistory: { role: string; 
   const defaultFallback: SelfQuery = { semantic_query: message, exact_keywords: [], exclude_keywords: [], budget_min: null, budget_max: null, price_sort: null, engine_type: null, seats: null, is_fuel_efficient: false, is_listing: false };
   if (!apiKey) return defaultFallback;
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
-
-    let historyContext = "";
-    if (chatHistory && chatHistory.length > 0) {
-      // Ambil maksimal 6 pesan terakhir untuk menghemat token dan fokus pada konteks terdekat
-      const recentHistory = chatHistory.slice(-6);
-      historyContext = "RIWAYAT PERCAKAPAN TERBARU:\n" + recentHistory.map(h => `${h.role === 'user' ? 'Kustomer' : 'Sales Executive'}: "${h.content}"`).join("\n") + "\n\n";
-    }
-
-    const systemInstruction = `
-      Anda adalah AI Self-Querying Retriever untuk sistem rekomendasi mobil Toyota Auto2000.
-      Tugas Anda adalah membedah (parsing) pesan kustomer menjadi objek JSON terstruktur.
-      Gunakan RIWAYAT PERCAKAPAN TERBARU sebagai konteks jika kustomer menggunakan kata ganti ("selain itu", "yang termurah").
-      
-      ATURAN EKSTRAKSI JSON:
-      - "semantic_query": Kalimat deskriptif bersih dari kueri kustomer (string).
-         ATURAN KETAT SEMANTIC_QUERY (ANTI-BIAS & ANTI-HALUSINASI):
-         1. DILARANG KERAS MENGARANG ATAU MENAMBAHKAN NAMA MODEL MOBIL (seperti Alphard, Innova, Avanza, Fortuner, Yaris, Calya, dsb.) KECUALI kustomer secara eksplisit menyebutkan nama model tersebut di pesan atau riwayat chat!
-         2. Hapus seluruh kata sapaan dan basa-basi (contoh: "halo min", "bisa minta rekomendasi", "mau tanya dong", "ada apa saja").
-         3. Hapus seluruh angka harga atau nominal uang (contoh: "300 juta", "400 jutaan", "di bawah 250jt") karena harga sudah ditangani oleh budget_min / budget_max.
-         4. Pertahankan murni deskripsi kebutuhan kustomer: fungsi pemakaian, kenyamanan, kapasitas muatan, efisiensi bahan bakar, tipe transmisi, atau medan jalan (contoh: "mobil keluarga kapasitas banyak penumpang efisien irit bahan bakar perjalanan jauh").
-         5. Jika kustomer menggunakan kata rujukan dari riwayat chat (contoh: riwayat membahas Avanza, lalu kustomer tanya "yang matic berapa?"), baru masukkan nama model dari riwayat ("Avanza transmisi matic").
-      - "exact_keywords": Array of strings. Jika kustomer meminta fitur HARGA MATI / spesifik, masukkan kata kunci fiturnya ke sini secara spesifik (DILARANG menggabungkan jenis atap yang berbeda fungsi).
-          PANDUAN KATEGORI FITUR SPESIFIK:
-          - ATAP KACA:
-            * "sunroof" -> ["sunroof", "sun roof"] (DILARANG memasukkan panoramic atau moonroof).
-            * "panoramic" / "panoramic roof" / "panoramic glass roof" -> ["panoramic roof", "panoramic"].
-            * "moonroof" / "moon roof" -> ["moonroof", "moon roof"].
-            * "atap kaca" (generik) -> ["atap kaca", "sunroof", "panoramic", "moonroof"].
-          - KESELAMATAN & DRIVER ASSISTANCE:
-            * "tss" / "safety sense" -> ["tss", "safety sense"].
-            * "blind spot" / "bsm" / "rcta" -> ["blind spot", "bsm", "rcta"].
-            * "adaptive cruise" / "drcc" -> ["adaptive cruise", "drcc"].
-            * "lane departure" / "lda" / "lta" -> ["lane departure", "lda", "lta"].
-            * "kamera 360" / "pvm" / "around view" -> ["360 camera", "around view", "kamera 360", "pvm"].
-          - KENYAMANAN & INTERIOR:
-            * "captain seat" -> ["captain seat", "captain"].
-            * "kursi elektrik" / "power seat" -> ["power seat", "electric seat", "kursi elektrik"].
-            * "pemanas / pendingin kursi" / "ventilated seat" -> ["seat heater", "ventilated seat"].
-            * "air purifier" / "nanoe" -> ["air purifier", "nanoe"].
-            * "ambient light" -> ["ambient light"].
-          - KEMUDAHAN & ELEKTRONIK:
-            * "power backdoor" / "kick sensor" / "bagasi otomatis" -> ["power backdoor", "kick sensor", "bagasi otomatis"].
-            * "wireless charger" / "cas nirkabel" -> ["wireless charger", "cas nirkabel"].
-            * "audio jbl" -> ["jbl", "speaker jbl"].
-            * "rem parkir elektrik" / "epb" / "auto hold" -> ["electric parking brake", "epb", "auto hold"].
-            * "paddle shift" -> ["paddle shift"].
-            * "4x4" / "4wd" / "penggerak 4 roda" / "diff lock" -> ["4x4", "4wd", "differential lock"].
-            * "head up display" / "hud" -> ["head up display", "hud"].
-          - DILARANG memasukkan nama model mobil ke sini.
-      - "exclude_keywords": Array of strings. HANYA isi jika kustomer EKSPLISIT meminta pengecualian (contoh: "tidak mau Fortuner", "selain warna hitam", "bukan mobil listrik"). Jika tidak ada permintaan pengecualian, kembalikan array kosong: [].
-      - "budget_min": Angka murni (number) batas BAWAH harga dalam Rupiah. HANYA isi jika kustomer EKSPLISIT menyebut batas minimal ("di atas 200 juta", "minimal 300 juta", "paling murah 250 juta"). Jika tidak ada batas bawah eksplisit, WAJIB isi null.
-      - "budget_max": Angka murni (number) batas ATAS harga dalam Rupiah. Jika kustomer bilang "di bawah 300 juta", "maksimal 300 juta", atau "budget 300 juta", isi 300000000. Jika kustomer bilang "budget 400 jutaan" atau "kisaran 400 juta", isi batas atas 499999999 (budget_min tetap null agar mobil di bawah budget tetap masuk rekomendasi). Jika tidak ada batas atas, isi null.
-      - CATATAN KHUSUS BUDGET KISARAN: Jika kustomer bilang "budget X jutaan" (misal "budget 400 jutaan"), artinya kustomer mampu membeli mobil hingga kelas 400-an juta, maka set budget_max = 499999999 dan budget_min = null (JANGAN memasang budget_min kaku kecuali diminta).
-      - "price_sort": "termurah" (HANYA JIKA kustomer EKSPLISIT menggunakan kata "termurah", "paling murah", "terendah" dalam pesan kustomer), "termahal" (HANYA JIKA kustomer EKSPLISIT menggunakan kata "termahal", "paling mahal", "tertinggi"), "keduanya" (HANYA JIKA kustomer EKSPLISIT meminta rentang harga termurah DAN termahal sekaligus). JIKA KUSTOMER TIDAK MENGGUNAKAN KATA "TERMURAH" ATAU "TERMAHAL" DI PESANNYA, WAJIB ISI null!
-      - "engine_type": "bensin" (hanya bensin murni), "hybrid" (hanya hybrid/HEV), "ev" (hanya listrik murni/BEV), "diesel" (hanya mesin diesel), atau null (bebas).
-      - "seats": 5, 7, 16 (untuk minibus), atau null.
-      - "is_fuel_efficient": true (jika mencari mobil irit bbm/hemat/efisien), false jika tidak.
-      - "is_listing": true (jika kustomer meminta "apa saja", "daftar", "tampilkan semua"), false jika tidak.
-
-      GLOSARIUM ISTILAH OTOMOTIF:
-      - "CAB-CHS" / "Cab & Chassis" = mobil sasis kosong tanpa bak belakang, siap dipasang bodi karoseri (boks, ambulans, toko keliling, dll).
-      - "CAB" / "Kabin" = bagian depan mobil (ruang kemudi sopir dan penumpang).
-      - "CHASSIS" / "Sasis" = rangka utama mobil beserta roda dan mesin.
-      - "PU" / "Pick Up" = sasis untuk modifikasi angkutan barang.
-      - "MB" / "Microbus" / "Motorized Business" / "Mobile Business" = sasis untuk modifikasi angkutan penumpang atau model komersial bergerak.
-      - "DSL" = mesin Diesel. Varian tanpa "DSL" berarti Bensin.
-      - "PICK UP" (tanpa CAB-CHS) = mobil sudah utuh lengkap dengan bak belakang bawaan pabrik.
-    `;
-
-    const selfQuerySchema = {
-      type: SchemaType.OBJECT,
-      properties: {
-        semantic_query: { type: SchemaType.STRING, description: "Deskripsi kebutuhan kendaraan bersih tanpa harga dan tanpa menambah nama mobil yang tidak disebutkan" },
-        exact_keywords: {
-          type: SchemaType.ARRAY,
-          items: { type: SchemaType.STRING },
-          description: "Array kata kunci fitur harga mati seperti panoramic roof, moonroof, sunroof, captain seat"
-        },
-        exclude_keywords: {
-          type: SchemaType.ARRAY,
-          items: { type: SchemaType.STRING },
-          description: "Array kata kunci kecualian atau jenis komersial"
-        },
-        budget_min: { type: SchemaType.NUMBER, nullable: true, description: "Batas bawah harga Rupiah atau null" },
-        budget_max: { type: SchemaType.NUMBER, nullable: true, description: "Batas atas harga Rupiah atau null" },
-        price_sort: {
-          type: SchemaType.STRING,
-          nullable: true,
-          description: "termurah, termahal, keduanya, atau null"
-        },
-        engine_type: {
-          type: SchemaType.STRING,
-          nullable: true,
-          description: "bensin, hybrid, ev, diesel, atau null"
-        },
-        seats: { type: SchemaType.NUMBER, nullable: true, description: "Jumlah kursi (5, 7, 16) atau null" },
-        is_fuel_efficient: { type: SchemaType.BOOLEAN, description: "true jika mencari mobil irit/hemat BBM" },
-        is_listing: { type: SchemaType.BOOLEAN, description: "true jika meminta daftar/tampilkan semua" },
-      },
-      required: ["semantic_query", "exact_keywords", "exclude_keywords", "is_fuel_efficient", "is_listing"],
-    };
-
-    const promptText = `${historyContext}Pertanyaan Kustomer Terbaru: "${message}"`;
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: promptText }] }],
-      systemInstruction: { role: "user", parts: [{ text: systemInstruction }] },
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 500,
-        responseMimeType: "application/json",
-        responseSchema: selfQuerySchema,
-      },
-    });
-
-    const rewrittenStr = result.response.text().trim();
-    console.log(`[RAG Self-Query] Result:`, rewrittenStr);
-    const selfQuery: SelfQuery = JSON.parse(rewrittenStr);
-
-    // Fallback normalization
-    selfQuery.semantic_query = selfQuery.semantic_query || message;
-    selfQuery.exact_keywords = selfQuery.exact_keywords || [];
-    selfQuery.exclude_keywords = selfQuery.exclude_keywords || [];
-    selfQuery.budget_min = selfQuery.budget_min || null;
-    selfQuery.budget_max = selfQuery.budget_max || null;
-
-    return selfQuery;
-  } catch (err) {
-    console.error("[RAG Self-Query] Error, falling back to default:", err);
-    return defaultFallback;
+  let historyContext = "";
+  if (chatHistory && chatHistory.length > 0) {
+    const recentHistory = chatHistory.slice(-6);
+    historyContext = "RIWAYAT PERCAKAPAN TERBARU:\n" + recentHistory.map(h => `${h.role === 'user' ? 'Kustomer' : 'Sales Executive'}: "${h.content}"`).join("\n") + "\n\n";
   }
+
+  const systemInstruction = `
+    Anda adalah AI Self-Querying Retriever untuk sistem rekomendasi mobil Toyota Auto2000.
+    Tugas Anda adalah membedah (parsing) pesan kustomer menjadi objek JSON terstruktur.
+    Gunakan RIWAYAT PERCAKAPAN TERBARU sebagai konteks jika kustomer menggunakan kata ganti ("selain itu", "yang termurah").
+    
+    ATURAN EKSTRAKSI JSON:
+    - "semantic_query": Kalimat deskriptif bersih dari kueri kustomer (string).
+       ATURAN KETAT SEMANTIC_QUERY (ANTI-BIAS & ANTI-HALUSINASI):
+       1. DILARANG KERAS MENGARANG ATAU MENAMBAHKAN NAMA MODEL MOBIL (seperti Alphard, Innova, Avanza, Fortuner, Yaris, Calya, dsb.) KECUALI kustomer secara eksplisit menyebutkan nama model tersebut di pesan atau riwayat chat!
+       2. Hapus seluruh kata sapaan dan basa-basi (contoh: "halo min", "bisa minta rekomendasi", "mau tanya dong", "ada apa saja").
+       3. Hapus seluruh angka harga atau nominal uang (contoh: "300 juta", "400 jutaan", "di bawah 250jt") karena harga sudah ditangani oleh budget_min / budget_max.
+       4. Pertahankan murni deskripsi kebutuhan kustomer: fungsi pemakaian, kenyamanan, kapasitas muatan, efisiensi bahan bakar, tipe transmisi, atau medan jalan (contoh: "mobil keluarga kapasitas banyak penumpang efisien irit bahan bakar perjalanan jauh").
+       5. Jika kustomer menggunakan kata rujukan dari riwayat chat (contoh: riwayat membahas Avanza, lalu kustomer tanya "yang matic berapa?"), baru masukkan nama model dari riwayat ("Avanza transmisi matic").
+    - "exact_keywords": Array of strings. Jika kustomer meminta fitur HARGA MATI / spesifik, masukkan kata kunci fiturnya ke sini secara spesifik (DILARANG menggabungkan jenis atap yang berbeda fungsi).
+        PANDUAN KATEGORI FITUR SPESIFIK:
+        - ATAP KACA:
+          * "sunroof" -> ["sunroof", "sun roof"] (DILARANG memasukkan panoramic atau moonroof).
+          * "panoramic" / "panoramic roof" / "panoramic glass roof" -> ["panoramic roof", "panoramic"].
+          * "moonroof" / "moon roof" -> ["moonroof", "moon roof"].
+          * "atap kaca" (generik) -> ["atap kaca", "sunroof", "panoramic", "moonroof"].
+        - KESELAMATAN & DRIVER ASSISTANCE:
+          * "tss" / "safety sense" -> ["tss", "safety sense"].
+          * "blind spot" / "bsm" / "rcta" -> ["blind spot", "bsm", "rcta"].
+          * "adaptive cruise" / "drcc" -> ["adaptive cruise", "drcc"].
+          * "lane departure" / "lda" / "lta" -> ["lane departure", "lda", "lta"].
+          * "kamera 360" / "pvm" / "around view" -> ["360 camera", "around view", "kamera 360", "pvm"].
+        - KENYAMANAN & INTERIOR:
+          * "captain seat" -> ["captain seat", "captain"].
+          * "kursi elektrik" / "power seat" -> ["power seat", "electric seat", "kursi elektrik"].
+          * "pemanas / pendingin kursi" / "ventilated seat" -> ["seat heater", "ventilated seat"].
+          * "air purifier" / "nanoe" -> ["air purifier", "nanoe"].
+          * "ambient light" -> ["ambient light"].
+        - KEMUDAHAN & ELEKTRONIK:
+          * "power backdoor" / "kick sensor" / "bagasi otomatis" -> ["power backdoor", "kick sensor", "bagasi otomatis"].
+          * "wireless charger" / "cas nirkabel" -> ["wireless charger", "cas nirkabel"].
+          * "audio jbl" -> ["jbl", "speaker jbl"].
+          * "rem parkir elektrik" / "epb" / "auto hold" -> ["electric parking brake", "epb", "auto hold"].
+          * "paddle shift" -> ["paddle shift"].
+          * "4x4" / "4wd" / "penggerak 4 roda" / "diff lock" -> ["4x4", "4wd", "differential lock"].
+          * "head up display" / "hud" -> ["head up display", "hud"].
+        - DILARANG memasukkan nama model mobil ke sini.
+    - "exclude_keywords": Array of strings. HANYA isi jika kustomer EKSPLISIT meminta pengecualian (contoh: "tidak mau Fortuner", "selain warna hitam", "bukan mobil listrik"). Jika tidak ada permintaan pengecualian, kembalikan array kosong: [].
+    - "budget_min": Angka murni (number) batas BAWAH harga dalam Rupiah. HANYA isi jika kustomer EKSPLISIT menyebut batas minimal ("di atas 200 juta", "minimal 300 juta", "paling murah 250 juta"). Jika tidak ada batas bawah eksplisit, WAJIB isi null.
+    - "budget_max": Angka murni (number) batas ATAS harga dalam Rupiah. Jika kustomer bilang "di bawah 300 juta", "maksimal 300 juta", atau "budget 300 juta", isi 300000000. Jika kustomer bilang "budget 400 jutaan" atau "kisaran 400 juta", isi batas atas 499999999 (budget_min tetap null agar mobil di bawah budget tetap masuk rekomendasi). Jika tidak ada batas atas, isi null.
+    - CATATAN KHUSUS BUDGET KISARAN: Jika kustomer bilang "budget X jutaan" (misal "budget 400 jutaan"), artinya kustomer mampu membeli mobil hingga kelas 400-an juta, maka set budget_max = 499999999 dan budget_min = null (JANGAN memasang budget_min kaku kecuali diminta).
+    - "price_sort": "termurah" (HANYA JIKA kustomer EKSPLISIT menggunakan kata "termurah", "paling murah", "terendah" dalam pesan kustomer), "termahal" (HANYA JIKA kustomer EKSPLISIT menggunakan kata "termahal", "paling mahal", "tertinggi"), "keduanya" (HANYA JIKA kustomer EKSPLISIT meminta rentang harga termurah DAN termahal sekaligus). JIKA KUSTOMER TIDAK MENGGUNAKAN KATA "TERMURAH" ATAU "TERMAHAL" DI PESANNYA, WAJIB ISI null!
+    - "engine_type": "bensin" (hanya bensin murni), "hybrid" (hanya hybrid/HEV), "ev" (hanya listrik murni/BEV), "diesel" (hanya mesin diesel), atau null (bebas).
+    - "seats": 5, 7, 16 (untuk minibus), atau null.
+    - "is_fuel_efficient": true (jika mencari mobil irit bbm/hemat/efisien), false jika tidak.
+    - "is_listing": true (jika kustomer meminta "apa saja", "daftar", "tampilkan semua"), false jika tidak.
+
+    GLOSARIUM ISTILAH OTOMOTIF:
+    - "CAB-CHS" / "Cab & Chassis" = mobil sasis kosong tanpa bak belakang, siap dipasang bodi karoseri (boks, ambulans, toko keliling, dll).
+    - "CAB" / "Kabin" = bagian depan mobil (ruang kemudi sopir dan penumpang).
+    - "CHASSIS" / "Sasis" = rangka utama mobil beserta roda dan mesin.
+    - "PU" / "Pick Up" = sasis untuk modifikasi angkutan barang.
+    - "MB" / "Microbus" / "Motorized Business" / "Mobile Business" = sasis untuk modifikasi angkutan penumpang atau model komersial bergerak.
+    - "DSL" = mesin Diesel. Varian tanpa "DSL" berarti Bensin.
+    - "PICK UP" (tanpa CAB-CHS) = mobil sudah utuh lengkap dengan bak belakang bawaan pabrik.
+  `;
+
+  const selfQuerySchema = {
+    type: SchemaType.OBJECT,
+    properties: {
+      semantic_query: { type: SchemaType.STRING, description: "Deskripsi kebutuhan kendaraan bersih tanpa harga dan tanpa menambah nama mobil yang tidak disebutkan" },
+      exact_keywords: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+        description: "Array kata kunci fitur harga mati seperti panoramic roof, moonroof, sunroof, captain seat"
+      },
+      exclude_keywords: {
+        type: SchemaType.ARRAY,
+        items: { type: SchemaType.STRING },
+        description: "Array kata kunci kecualian atau jenis komersial"
+      },
+      budget_min: { type: SchemaType.NUMBER, nullable: true, description: "Batas bawah harga Rupiah atau null" },
+      budget_max: { type: SchemaType.NUMBER, nullable: true, description: "Batas atas harga Rupiah atau null" },
+      price_sort: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description: "termurah, termahal, keduanya, atau null"
+      },
+      engine_type: {
+        type: SchemaType.STRING,
+        nullable: true,
+        description: "bensin, hybrid, ev, diesel, atau null"
+      },
+      seats: { type: SchemaType.NUMBER, nullable: true, description: "Jumlah kursi (5, 7, 16) atau null" },
+      is_fuel_efficient: { type: SchemaType.BOOLEAN, description: "true jika mencari mobil irit/hemat BBM" },
+      is_listing: { type: SchemaType.BOOLEAN, description: "true jika meminta daftar/tampilkan semua" },
+    },
+    required: ["semantic_query", "exact_keywords", "exclude_keywords", "is_fuel_efficient", "is_listing"],
+  };
+
+  const promptText = `${historyContext}Pertanyaan Kustomer Terbaru: "${message}"`;
+  const candidateModels = ["gemini-3.5-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash"];
+  const genAI = new GoogleGenerativeAI(apiKey);
+
+  for (const modelName of candidateModels) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent({
+        contents: [{ role: "user", parts: [{ text: promptText }] }],
+        systemInstruction: { role: "user", parts: [{ text: systemInstruction }] },
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 500,
+          responseMimeType: "application/json",
+          responseSchema: selfQuerySchema,
+        },
+      });
+
+      const rewrittenStr = result.response.text().trim();
+      console.log(`[RAG Self-Query (${modelName})] Result:`, rewrittenStr);
+      const selfQuery: SelfQuery = JSON.parse(rewrittenStr);
+
+      // Fallback normalization
+      selfQuery.semantic_query = selfQuery.semantic_query || message;
+      selfQuery.exact_keywords = selfQuery.exact_keywords || [];
+      selfQuery.exclude_keywords = selfQuery.exclude_keywords || [];
+      selfQuery.budget_min = selfQuery.budget_min || null;
+      selfQuery.budget_max = selfQuery.budget_max || null;
+
+      return selfQuery;
+    } catch (err: any) {
+      console.warn(`[RAG Self-Query] Model ${modelName} failed (${err?.status || err?.message}), trying fallback...`);
+    }
+  }
+
+  console.error("[RAG Self-Query] All candidate models failed, falling back to default");
+  return defaultFallback;
 }
 
 // --- BM25 Lexical Scorer & Reciprocal Rank Fusion (RRF) ---
@@ -1182,7 +1186,7 @@ async function tanyaGemini(
   if (!apiKey) throw new Error("GOOGLE_API_KEY not configured");
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-3.1-flash-lite" });
+  const candidateModels = ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.6-flash"];
 
   const systemPrompt = `
     Anda adalah Sales Executive profesional dan ramah dari Auto2000 Rantauprapat.
@@ -1245,36 +1249,46 @@ async function tanyaGemini(
     });
   }
 
-  const maxRetry = 5;
-  for (let attempt = 0; attempt < maxRetry; attempt++) {
-    try {
-      const result = await model.generateContent({
-        contents,
-        systemInstruction: { role: "user", parts: [{ text: systemPrompt }] },
-        generationConfig: { temperature: 0.2 },
-      });
+  let lastError: any = null;
 
-      return result.response.text();
-    } catch (error: any) {
-      if (error?.status === 429 || error?.message?.includes("RESOURCE_EXHAUSTED")) {
-        const waitTime = Math.min(2 ** attempt * 5, 60) * 1000;
-        if (attempt < maxRetry - 1) {
+  for (const modelName of candidateModels) {
+    const model = genAI.getGenerativeModel({ model: modelName });
+    const maxRetry = 2;
+
+    for (let attempt = 0; attempt < maxRetry; attempt++) {
+      try {
+        const result = await model.generateContent({
+          contents,
+          systemInstruction: { role: "user", parts: [{ text: systemPrompt }] },
+          generationConfig: { temperature: 0.2 },
+        });
+
+        return result.response.text();
+      } catch (error: any) {
+        lastError = error;
+        console.warn(`[tanyaGemini (${modelName}, attempt ${attempt + 1})] Error: ${error?.status || error?.message}`);
+        
+        const isRateOrOverload = 
+          error?.status === 429 || 
+          error?.status === 503 ||
+          error?.message?.includes("RESOURCE_EXHAUSTED") ||
+          error?.message?.includes("503") ||
+          error?.message?.includes("Service Unavailable") ||
+          error?.message?.includes("high demand") ||
+          error?.message?.includes("DEADLINE_EXCEEDED");
+
+        if (isRateOrOverload && attempt < maxRetry - 1) {
+          const waitTime = Math.min(2 ** attempt * 1.5, 5) * 1000;
           await new Promise((resolve) => setTimeout(resolve, waitTime));
           continue;
         }
+        // Jika retry untuk model ini gagal, loop akan pindah ke candidateModel berikutnya
+        break;
       }
-      if (error?.message?.includes("DEADLINE_EXCEEDED")) {
-        const waitTime = 2 ** attempt * 1000;
-        if (attempt < maxRetry - 1) {
-          await new Promise((resolve) => setTimeout(resolve, waitTime));
-          continue;
-        }
-      }
-      throw error;
     }
   }
 
-  throw new Error("Max retries exceeded");
+  throw lastError || new Error("Semua model Gemini sedang tidak dapat diakses.");
 }
 
 // --- API Route Handler ---

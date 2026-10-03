@@ -167,3 +167,9 @@ evaluate/referensi_tc/eval-deepeval.pdf
 evaluate/referensi_tc/Es-et-al_2024_Ragas.pdf
 evaluate/referensi_tc/BAB-5-Revisi_Subbab_G_dan_H_Evaluasi_DeepEval.docx
 evaluate/referensi_tc/analisis_persebaran_test_case.md
+evaluate/native_rag_pipeline.py
+evaluate/native-hasil_evaluasi_generative.json
+evaluate/native-hasil_evaluasi_retrieval.json
+evaluate/native-hasil_rag_pipeline.json
+evaluate/test_evaluasi_generate_native.py
+evaluate/test_evaluasi_retrieval_native.py
